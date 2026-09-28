@@ -4,40 +4,31 @@ class SyrSafeTechConnect extends IPSModule {
     public function Create() {
         parent::Create();
         
-        // Grundeinstellungen
         $this->RegisterPropertyString("IPAddress", "192.168.50.168");
         $this->RegisterPropertyInteger("Port", 5333);
         $this->RegisterPropertyInteger("UpdateInterval", 60);
         
-        // Timer für die automatische Abfrage
         $this->RegisterTimer("UpdateData", 0, 'SYR_UpdateData($_IPS[\'TARGET\']);');
         
-        // Profile registrieren
         $this->RegisterProfiles();
     }
 
     public function ApplyChanges() {
         parent::ApplyChanges();
         
-        // Timer setzen
         $this->SetTimerInterval("UpdateData", $this->ReadPropertyInteger("UpdateInterval") * 1000);
-        
-        // Variablenstruktur im Objektbaum aufbauen
         $this->MaintainVariables();
-        
-        // Direkter Initialabruf
         $this->UpdateData();
     }
 
-private function RegisterProfiles() {
-        // Ventilsteuerung (1 = Geöffnet, 2 = Geschlossen)
-        if (!IPS_VariableProfileExists("SYR.Valve")) {
-            IPS_CreateVariableProfile("SYR.Valve", 1);
-            IPS_SetVariableProfileAssociation("SYR.Valve", 1, "Geöffnet", "Drops", 0x00FF00);
-            IPS_SetVariableProfileAssociation("SYR.Valve", 2, "Geschlossen", "Lock", 0xFF0000);
+    private function RegisterProfiles() {
+        // Boolean Profil für WebFront Slider-Button
+        if (!IPS_VariableProfileExists("SYR.Valve.Bool")) {
+            IPS_CreateVariableProfile("SYR.Valve.Bool", 0); // 0 = Boolean
+            IPS_SetVariableProfileAssociation("SYR.Valve.Bool", true, "Geöffnet", "Drops", 0x00FF00);
+            IPS_SetVariableProfileAssociation("SYR.Valve.Bool", false, "Geschlossen", "Lock", 0xFF0000);
         }
         
-        // Alarmstatus (FF wird zu 0, ansonsten Alarmcodes)
         if (!IPS_VariableProfileExists("SYR.Alarm")) {
             IPS_CreateVariableProfile("SYR.Alarm", 1);
             IPS_SetVariableProfileAssociation("SYR.Alarm", 0, "OK", "Ok", 0x00FF00);
@@ -47,21 +38,24 @@ private function RegisterProfiles() {
             IPS_SetVariableProfileAssociation("SYR.Alarm", 4, "Mikroleckage", "Warning", 0xFF0000);
         }
         
-        // Profil: Aktueller Durchfluss (l/h)
         if (!IPS_VariableProfileExists("SYR.Flow")) {
-            IPS_CreateVariableProfile("SYR.Flow", 2); // 2 = Float
+            IPS_CreateVariableProfile("SYR.Flow", 2);
             IPS_SetVariableProfileText("SYR.Flow", "", " l/h");
             IPS_SetVariableProfileIcon("SYR.Flow", "Drops");
         }
 
-        // Profil: Wasserverbrauch (Liter)
         if (!IPS_VariableProfileExists("SYR.Volume")) {
-            IPS_CreateVariableProfile("SYR.Volume", 2); // 2 = Float
+            IPS_CreateVariableProfile("SYR.Volume", 2);
             IPS_SetVariableProfileText("SYR.Volume", "", " Liter");
             IPS_SetVariableProfileIcon("SYR.Volume", "Tap");
         }
+
+        if (!IPS_VariableProfileExists("SYR.Conductivity")) {
+            IPS_CreateVariableProfile("SYR.Conductivity", 2);
+            IPS_SetVariableProfileText("SYR.Conductivity", "", " µS/cm");
+            IPS_SetVariableProfileIcon("SYR.Conductivity", "Lightning");
+        }
         
-        // Profile für Anwesenheitsstatus
         if (!IPS_VariableProfileExists("SYR.Profile")) {
             IPS_CreateVariableProfile("SYR.Profile", 1);
             IPS_SetVariableProfileAssociation("SYR.Profile", 1, "Anwesend", "House", -1);
@@ -70,36 +64,38 @@ private function RegisterProfiles() {
         }
     }
 
-private function MaintainVariables() {
-        $this->RegisterVariableString("Firmware", "Firmware Version", "", 10);
+    private function MaintainVariables() {
+        // System- & Netzwerk-Informationen
+        $this->RegisterVariableString("SerialNumber", "Seriennummer", "", 10);
+        $this->RegisterVariableString("Firmware", "Firmware Version", "", 11);
+        $this->RegisterVariableString("SSID", "WLAN Name", "", 12);
+        $this->RegisterVariableInteger("RSSI", "WLAN Signalstärke", "~Intensity.100", 13);
+        $this->RegisterVariableString("ConnectionStatus", "Verbindungsstatus", "", 14);
         
-        $this->RegisterVariableInteger("ValveState", "Ventilzustand", "SYR.Valve", 20);
-        $this->EnableAction("ValveState"); // Bedienung im WebFront erlauben
+        // Steuerung
+        $this->RegisterVariableBoolean("ValveState", "Ventilzustand", "SYR.Valve.Bool", 20);
+        $this->EnableAction("ValveState"); 
         
+        // Messwerte
         $this->RegisterVariableFloat("Temperature", "Wassertemperatur", "~Temperature", 30);
         $this->RegisterVariableFloat("Pressure", "Wasserdruck", "~AirPressure.F", 40);
-        
-        // Nutzung der neu angelegten, eigenen Profile
         $this->RegisterVariableFloat("Flow", "Aktueller Durchfluss", "SYR.Flow", 50);
         $this->RegisterVariableFloat("TotalVolume", "Gesamtwasserverbrauch", "SYR.Volume", 60);
+        $this->RegisterVariableFloat("Conductivity", "Leitfähigkeit", "SYR.Conductivity", 65);
         
-        $this->RegisterVariableInteger("AlarmState", "Alarmstatus", "SYR.Alarm", 70);
+        // Status & Alarme
+        $this->RegisterVariableInteger("AlarmState", "Alarm Code", "SYR.Alarm", 70);
+        $this->RegisterVariableString("AlarmMessage", "Aktuelle Meldung (Klartext)", "", 75);
         $this->RegisterVariableInteger("ActiveProfile", "Aktives Profil", "SYR.Profile", 80);
     }
     
     public function UpdateData() {
         $ip = $this->ReadPropertyString("IPAddress");
-        
-        if (empty($ip)) {
-            $this->SendDebug("UpdateData", "Keine IP-Adresse konfiguriert", 0);
-            return;
-        }
+        if (empty($ip)) return;
 
-        // 1. Admin-Modus aktivieren (schaltet Werte wie getVOL frei)
+        // 1. Admin-Modus aktivieren
         $this->FetchData("/safe-tec/set/ADM/(2)f");
-        
-        // Kurzer Delay, damit das Gerät den Status verarbeitet (Vermeidet Blockieren von IPS)
-        usleep(200000); // 200 ms
+        usleep(200000); 
         
         // 2. Daten abrufen
         $response = $this->FetchData("/safe-tec/get/all");
@@ -110,45 +106,64 @@ private function MaintainVariables() {
         
         $data = json_decode($response, true);
         if (is_array($data)) {
-            if (isset($data['getVER'])) $this->SetValue("Firmware", $data['getVER']);
-            if (isset($data['getAB']))  $this->SetValue("ValveState", (int)$data['getAB']);
-            if (isset($data['getTMP'])) $this->SetValue("Temperature", (float)$data['getTMP']);
+            // System
+            if (isset($data['getSRN'])) $this->SetValue("SerialNumber", (string)$data['getSRN']);
+            if (isset($data['getVER'])) $this->SetValue("Firmware", (string)$data['getVER']);
+            if (isset($data['getWFC'])) $this->SetValue("SSID", (string)$data['getWFC']);
+            if (isset($data['getWFR'])) $this->SetValue("RSSI", (int)$data['getWFR']);
             
-            // Druckwert bereinigen (Entfernt " mbar" und formatiert zu Float)
+            if (isset($data['getWFS'])) {
+                $status = ($data['getWFS'] == 2) ? "Verbunden" : "Getrennt (Code: " . $data['getWFS'] . ")";
+                $this->SetValue("ConnectionStatus", $status);
+            }
+
+            // Ventil (1 = Offen/true, Alles andere = Zu/false)
+            if (isset($data['getAB'])) {
+                $this->SetValue("ValveState", ($data['getAB'] == "1"));
+                
+                // Formular Slider-Status synchronisieren (verhindert Fehlstellungen in der Console)
+                $this->UpdateFormField("FormValveSwitch", "value", ($data['getAB'] == "1"));
+            }
+            
+            // Messwerte
+            if (isset($data['getTMP'])) $this->SetValue("Temperature", (float)$data['getTMP']);
             if (isset($data['getBAR'])) {
                 $druck = (float)str_replace(" mbar", "", $data['getBAR']);
                 $this->SetValue("Pressure", $druck);
             }
-            
             if (isset($data['getFLO'])) $this->SetValue("Flow", (float)$data['getFLO']);
-            
-            // Prüfen ob Admin-Modus erfolgreich war
+            if (isset($data['getCEL'])) $this->SetValue("Conductivity", (float)$data['getCEL']);
             if (isset($data['getVOL']) && $data['getVOL'] !== "ERROR: ADM") {
                 $this->SetValue("TotalVolume", (float)$data['getVOL']);
             }
             
-            // Alarmstatus auf Integer mappen
+            // Alarme & Profile
             if (isset($data['getALA'])) {
                 $alarmCode = ($data['getALA'] == "FF") ? 0 : (int)$data['getALA'];
                 $this->SetValue("AlarmState", $alarmCode);
             }
-            
+            if (isset($data['getALM']) && $data['getALM'] !== "ERROR: ADM") {
+                $this->SetValue("AlarmMessage", (string)$data['getALM']);
+            }
             if (isset($data['getPRF'])) $this->SetValue("ActiveProfile", (int)$data['getPRF']);
         }
     }
 
-    // Erlaubt das Schalten des Ventils aus dem WebFront oder per Skript
+    // Erwartet nun ein Boolean (true = Öffnen, false = Schließen)
+    public function SetValveState(bool $State) {
+        $endpointVal = $State ? 1 : 2; 
+        $endpoint = "/safe-tec/set/AB/(" . $endpointVal . ")f";
+        
+        $this->FetchData($endpoint);
+        
+        usleep(200000); 
+        $this->UpdateData();
+    }
+
     public function RequestAction($Ident, $Value) {
         switch ($Ident) {
             case "ValveState":
-                // Value: 1 = Öffnen, 2 = Schließen
-                $endpoint = "/safe-tec/set/AB/(" . $Value . ")f";
-                $this->FetchData($endpoint);
-                $this->SetValue($Ident, $Value);
-                
-                // Kurze Pause, dann zur Sicherheit re-syncen
-                usleep(200000); 
-                $this->UpdateData();
+                $this->SetValveState($Value); // $Value ist hier automatisch true/false
                 break;
             default:
                 throw new Exception("Invalid Ident");
