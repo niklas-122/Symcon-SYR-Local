@@ -21,8 +21,14 @@
     ],
     "actions": [
         {
+            "type": "Switch",
+            "name": "FormValveSwitch",
+            "caption": "Ventil manuell schalten",
+            "onChange": "SYR_SetValveState($id, $FormValveSwitch);"
+        },
+        {
             "type": "Button",
-            "label": "Daten jetzt aktualisieren",
+            "caption": "Daten jetzt aktualisieren",
             "onClick": "SYR_UpdateData($id);"
         }
     ]
