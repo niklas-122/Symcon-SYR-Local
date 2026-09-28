@@ -22,7 +22,7 @@ class SyrSafeTechConnect extends IPSModule {
     }
 
     private function RegisterProfiles() {
-        // Boolean Profil für WebFront Slider-Button
+        // Boolean Profil für WebFront Schalter & Formular Checkbox
         if (!IPS_VariableProfileExists("SYR.Valve.Bool")) {
             IPS_CreateVariableProfile("SYR.Valve.Bool", 0); // 0 = Boolean
             IPS_SetVariableProfileAssociation("SYR.Valve.Bool", true, "Geöffnet", "Drops", 0x00FF00);
@@ -119,10 +119,11 @@ class SyrSafeTechConnect extends IPSModule {
 
             // Ventil (1 = Offen/true, Alles andere = Zu/false)
             if (isset($data['getAB'])) {
-                $this->SetValue("ValveState", ($data['getAB'] == "1"));
+                $isOpen = ($data['getAB'] == "1");
+                $this->SetValue("ValveState", $isOpen);
                 
-                // Formular Slider-Status synchronisieren (verhindert Fehlstellungen in der Console)
-                $this->UpdateFormField("FormValveSwitch", "value", ($data['getAB'] == "1"));
+                // Checkbox-Status in der Instanz-Konfiguration synchronisieren
+                $this->UpdateFormField("FormValveSwitch", "value", $isOpen);
             }
             
             // Messwerte
@@ -149,7 +150,6 @@ class SyrSafeTechConnect extends IPSModule {
         }
     }
 
-    // Erwartet nun ein Boolean (true = Öffnen, false = Schließen)
     public function SetValveState(bool $State) {
         $endpointVal = $State ? 1 : 2; 
         $endpoint = "/safe-tec/set/AB/(" . $endpointVal . ")f";
@@ -163,7 +163,7 @@ class SyrSafeTechConnect extends IPSModule {
     public function RequestAction($Ident, $Value) {
         switch ($Ident) {
             case "ValveState":
-                $this->SetValveState($Value); // $Value ist hier automatisch true/false
+                $this->SetValveState($Value);
                 break;
             default:
                 throw new Exception("Invalid Ident");
