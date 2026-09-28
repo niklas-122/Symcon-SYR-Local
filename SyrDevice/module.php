@@ -29,7 +29,7 @@ class SyrSafeTechConnect extends IPSModule {
         $this->UpdateData();
     }
 
-    private function RegisterProfiles() {
+private function RegisterProfiles() {
         // Ventilsteuerung (1 = Geöffnet, 2 = Geschlossen)
         if (!IPS_VariableProfileExists("SYR.Valve")) {
             IPS_CreateVariableProfile("SYR.Valve", 1);
@@ -47,7 +47,21 @@ class SyrSafeTechConnect extends IPSModule {
             IPS_SetVariableProfileAssociation("SYR.Alarm", 4, "Mikroleckage", "Warning", 0xFF0000);
         }
         
-        // Profile
+        // Profil: Aktueller Durchfluss (l/h)
+        if (!IPS_VariableProfileExists("SYR.Flow")) {
+            IPS_CreateVariableProfile("SYR.Flow", 2); // 2 = Float
+            IPS_SetVariableProfileText("SYR.Flow", "", " l/h");
+            IPS_SetVariableProfileIcon("SYR.Flow", "Drops");
+        }
+
+        // Profil: Wasserverbrauch (Liter)
+        if (!IPS_VariableProfileExists("SYR.Volume")) {
+            IPS_CreateVariableProfile("SYR.Volume", 2); // 2 = Float
+            IPS_SetVariableProfileText("SYR.Volume", "", " Liter");
+            IPS_SetVariableProfileIcon("SYR.Volume", "Tap");
+        }
+        
+        // Profile für Anwesenheitsstatus
         if (!IPS_VariableProfileExists("SYR.Profile")) {
             IPS_CreateVariableProfile("SYR.Profile", 1);
             IPS_SetVariableProfileAssociation("SYR.Profile", 1, "Anwesend", "House", -1);
@@ -56,15 +70,18 @@ class SyrSafeTechConnect extends IPSModule {
         }
     }
 
-    private function MaintainVariables() {
+private function MaintainVariables() {
         $this->RegisterVariableString("Firmware", "Firmware Version", "", 10);
+        
         $this->RegisterVariableInteger("ValveState", "Ventilzustand", "SYR.Valve", 20);
         $this->EnableAction("ValveState"); // Bedienung im WebFront erlauben
         
         $this->RegisterVariableFloat("Temperature", "Wassertemperatur", "~Temperature", 30);
         $this->RegisterVariableFloat("Pressure", "Wasserdruck", "~AirPressure.F", 40);
-        $this->RegisterVariableFloat("Flow", "Aktueller Durchfluss", "~Water.Volume", 50);
-        $this->RegisterVariableFloat("TotalVolume", "Gesamtwasserverbrauch", "~Water", 60);
+        
+        // Nutzung der neu angelegten, eigenen Profile
+        $this->RegisterVariableFloat("Flow", "Aktueller Durchfluss", "SYR.Flow", 50);
+        $this->RegisterVariableFloat("TotalVolume", "Gesamtwasserverbrauch", "SYR.Volume", 60);
         
         $this->RegisterVariableInteger("AlarmState", "Alarmstatus", "SYR.Alarm", 70);
         $this->RegisterVariableInteger("ActiveProfile", "Aktives Profil", "SYR.Profile", 80);
