@@ -23,7 +23,7 @@ class SyrSafeTechConnect extends IPSModule {
 
     private function RegisterProfiles() {
         if (!IPS_VariableProfileExists("SYR.Valve.Bool")) {
-            IPS_CreateVariableProfile("SYR.Valve.Bool", 0); // 0 = Boolean
+            IPS_CreateVariableProfile("SYR.Valve.Bool", 0);
             IPS_SetVariableProfileAssociation("SYR.Valve.Bool", true, "Geöffnet", "Drops", 0x00FF00);
             IPS_SetVariableProfileAssociation("SYR.Valve.Bool", false, "Geschlossen", "Lock", 0xFF0000);
         }
@@ -54,6 +54,12 @@ class SyrSafeTechConnect extends IPSModule {
             IPS_SetVariableProfileText("SYR.Conductivity", "", " µS/cm");
             IPS_SetVariableProfileIcon("SYR.Conductivity", "Lightning");
         }
+
+        if (!IPS_VariableProfileExists("SYR.Voltage")) {
+            IPS_CreateVariableProfile("SYR.Voltage", 2);
+            IPS_SetVariableProfileText("SYR.Voltage", "", " V");
+            IPS_SetVariableProfileIcon("SYR.Voltage", "Electricity");
+        }
         
         if (!IPS_VariableProfileExists("SYR.Profile")) {
             IPS_CreateVariableProfile("SYR.Profile", 1);
@@ -64,35 +70,41 @@ class SyrSafeTechConnect extends IPSModule {
     }
 
     private function MaintainVariables() {
-        // System- & Netzwerk-Informationen
+        // --- 1. System & Netzwerk (Position 10 - 19) ---
         $this->RegisterVariableString("SerialNumber", "Seriennummer", "", 10);
         $this->RegisterVariableString("Firmware", "Firmware Version", "", 11);
-        $this->RegisterVariableString("SSID", "WLAN Name", "", 12);
-        $this->RegisterVariableInteger("RSSI", "WLAN Signalstärke", "~Intensity.100", 13);
-        $this->RegisterVariableString("ConnectionStatus", "Verbindungsstatus", "", 14);
+        $this->RegisterVariableString("MacAddress", "MAC-Adresse", "", 12);
+        $this->RegisterVariableString("SSID", "WLAN Name", "", 13);
+        $this->RegisterVariableInteger("RSSI", "WLAN Signalstärke", "~Intensity.100", 14);
+        $this->RegisterVariableString("ConnectionStatus", "Verbindungsstatus", "", 15);
         
-        // Steuerung
+        // --- 2. Steuerung & Profile (Position 20 - 29) ---
         $this->RegisterVariableBoolean("ValveState", "Ventilzustand", "SYR.Valve.Bool", 20);
         $this->EnableAction("ValveState"); 
+        $this->RegisterVariableInteger("ActiveProfile", "Aktives Profil", "SYR.Profile", 21);
+        $this->RegisterVariableBoolean("SleepMode", "Schlafmodus / Urlaub aktiv", "~Switch", 22);
         
-        // Messwerte
+        // --- 3. Messwerte & Wasser (Position 30 - 69) ---
         $this->RegisterVariableFloat("Temperature", "Wassertemperatur", "~Temperature", 30);
         $this->RegisterVariableFloat("Pressure", "Wasserdruck", "~AirPressure.F", 40);
         $this->RegisterVariableFloat("Flow", "Aktueller Durchfluss", "SYR.Flow", 50);
+        $this->RegisterVariableFloat("CurrentTapVolume", "Aktuelles Zapfvolumen", "SYR.Volume", 55);
+        $this->RegisterVariableFloat("LastTapVolume", "Letztes Zapfvolumen", "SYR.Volume", 58);
         $this->RegisterVariableFloat("TotalVolume", "Gesamtwasserverbrauch", "SYR.Volume", 60);
         $this->RegisterVariableFloat("Conductivity", "Leitfähigkeit", "SYR.Conductivity", 65);
         
-        // Status & Alarme
-        $this->RegisterVariableInteger("AlarmState", "Alarm Code", "SYR.Alarm", 70);
-        $this->RegisterVariableString("AlarmMessage", "Aktuelle Meldung (Klartext)", "", 75);
-        $this->RegisterVariableInteger("ActiveProfile", "Aktives Profil", "SYR.Profile", 80);
+        // --- 4. Gerätestatus & Diagnose (Position 70 - 99) ---
+        $this->RegisterVariableFloat("BatteryVoltage", "Batteriespannung", "SYR.Voltage", 70);
+        $this->RegisterVariableInteger("AlarmState", "Alarm Code", "SYR.Alarm", 80);
+        $this->RegisterVariableString("AlarmMessage", "Aktuelle Meldung (Klartext)", "", 85);
+        $this->RegisterVariableBoolean("BuzzerActive", "Summer (Buzzer) aktiv", "~Switch", 90);
     }
     
     public function UpdateData() {
         $ip = $this->ReadPropertyString("IPAddress");
         if (empty($ip)) return;
 
-        // 1. Admin-Modus aktivieren
+        // 1. Admin-Modus aktivieren (schaltet geschützte Werte frei)
         $this->FetchData("/safe-tec/set/ADM/(2)f");
         usleep(200000); 
         
@@ -105,9 +117,10 @@ class SyrSafeTechConnect extends IPSModule {
         
         $data = json_decode($response, true);
         if (is_array($data)) {
-            // System
+            // System & Netzwerk
             if (isset($data['getSRN'])) $this->SetValue("SerialNumber", (string)$data['getSRN']);
             if (isset($data['getVER'])) $this->SetValue("Firmware", (string)$data['getVER']);
+            if (isset($data['getMAC'])) $this->SetValue("MacAddress", (string)$data['getMAC']);
             if (isset($data['getWFC'])) $this->SetValue("SSID", (string)$data['getWFC']);
             if (isset($data['getWFR'])) $this->SetValue("RSSI", (int)$data['getWFR']);
             
@@ -116,13 +129,15 @@ class SyrSafeTechConnect extends IPSModule {
                 $this->SetValue("ConnectionStatus", $status);
             }
 
-            // Ventil (1 = Offen/true, Alles andere = Zu/false)
+            // Steuerung & Profile
             if (isset($data['getAB'])) {
                 $isOpen = ($data['getAB'] == "1");
                 $this->SetValue("ValveState", $isOpen);
             }
-            
-            // Messwerte
+            if (isset($data['getPRF'])) $this->SetValue("ActiveProfile", (int)$data['getPRF']);
+            if (isset($data['getSLE'])) $this->SetValue("SleepMode", ((int)$data['getSLE'] === 1));
+
+            // Messwerte & Wasser
             if (isset($data['getTMP'])) $this->SetValue("Temperature", (float)$data['getTMP']);
             if (isset($data['getBAR'])) {
                 $druck = (float)str_replace(" mbar", "", $data['getBAR']);
@@ -130,11 +145,23 @@ class SyrSafeTechConnect extends IPSModule {
             }
             if (isset($data['getFLO'])) $this->SetValue("Flow", (float)$data['getFLO']);
             if (isset($data['getCEL'])) $this->SetValue("Conductivity", (float)$data['getCEL']);
+            
+            // Zapfvolumina umrechnen/zuweisen
+            if (isset($data['getAVO'])) {
+                $avoVal = (float)str_replace(["mL", " "], "", $data['getAVO']);
+                $this->SetValue("CurrentTapVolume", $avoVal / 1000); // Umrechnung mL zu Litern
+            }
+            if (isset($data['getLTV'])) $this->SetValue("LastTapVolume", (float)$data['getLTV']);
+            
             if (isset($data['getVOL']) && $data['getVOL'] !== "ERROR: ADM") {
                 $this->SetValue("TotalVolume", (float)$data['getVOL']);
             }
             
-            // Alarme & Profile
+            // Gerätestatus & Diagnose (Batterie hat Komma im API-String wie "9,42")
+            if (isset($data['getBAT']) && $data['getBAT'] !== "ERROR: ADM") {
+                $batt = (float)str_replace(',', '.', $data['getBAT']);
+                $this->SetValue("BatteryVoltage", $batt);
+            }
             if (isset($data['getALA'])) {
                 $alarmCode = ($data['getALA'] == "FF") ? 0 : (int)$data['getALA'];
                 $this->SetValue("AlarmState", $alarmCode);
@@ -142,7 +169,9 @@ class SyrSafeTechConnect extends IPSModule {
             if (isset($data['getALM']) && $data['getALM'] !== "ERROR: ADM") {
                 $this->SetValue("AlarmMessage", (string)$data['getALM']);
             }
-            if (isset($data['getPRF'])) $this->SetValue("ActiveProfile", (int)$data['getPRF']);
+            if (isset($data['getBUZ'])) {
+                $this->SetValue("BuzzerActive", ((int)$data['getBUZ'] === 1));
+            }
         }
     }
 
@@ -152,7 +181,6 @@ class SyrSafeTechConnect extends IPSModule {
         
         $this->FetchData($endpoint);
         
-        // 1 Sekunde warten, damit das physische Ventil umschalten kann
         usleep(1000000); 
         $this->UpdateData();
     }
