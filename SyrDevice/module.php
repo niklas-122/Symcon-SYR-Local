@@ -22,7 +22,6 @@ class SyrSafeTechConnect extends IPSModule {
     }
 
     private function RegisterProfiles() {
-        // Boolean Profil für WebFront Schalter & Formular Checkbox
         if (!IPS_VariableProfileExists("SYR.Valve.Bool")) {
             IPS_CreateVariableProfile("SYR.Valve.Bool", 0); // 0 = Boolean
             IPS_SetVariableProfileAssociation("SYR.Valve.Bool", true, "Geöffnet", "Drops", 0x00FF00);
@@ -121,9 +120,6 @@ class SyrSafeTechConnect extends IPSModule {
             if (isset($data['getAB'])) {
                 $isOpen = ($data['getAB'] == "1");
                 $this->SetValue("ValveState", $isOpen);
-                
-                // Checkbox-Status in der Instanz-Konfiguration synchronisieren
-                $this->UpdateFormField("FormValveSwitch", "value", $isOpen);
             }
             
             // Messwerte
@@ -156,7 +152,8 @@ class SyrSafeTechConnect extends IPSModule {
         
         $this->FetchData($endpoint);
         
-        usleep(200000); 
+        // 1 Sekunde warten, damit das physische Ventil umschalten kann
+        usleep(1000000); 
         $this->UpdateData();
     }
 
