@@ -94,15 +94,17 @@ class SyrSafeTechConnect extends IPSModule {
         $this->RegisterVariableString("SerialNumber", "Seriennummer", "", 10);
         $this->RegisterVariableString("Firmware", "Firmware Version", "", 11);
         $this->RegisterVariableString("MacAddress", "MAC-Adresse", "", 12);
-        $this->RegisterVariableString("SSID", "WLAN Name", "", 13);
-        $this->RegisterVariableInteger("RSSI", "WLAN Signalstärke", "SYR.RSSI", 14);
-        $this->RegisterVariableString("ConnectionStatus", "Verbindungsstatus", "", 15);
+        $this->RegisterVariableString("IpAddress", "IP-Adresse", "", 13);
+        $this->RegisterVariableString("SSID", "WLAN Name", "", 14);
+        $this->RegisterVariableInteger("RSSI", "WLAN Signalstärke", "SYR.RSSI", 15);
+        $this->RegisterVariableString("ConnectionStatus", "Verbindungsstatus", "", 16);
         
         // --- 2. Steuerung & Profile (Position 20 - 29) ---
         $this->RegisterVariableBoolean("ValveState", "Ventilzustand", "SYR.Valve.Bool", 20);
         $this->EnableAction("ValveState"); 
         $this->RegisterVariableInteger("ActiveProfile", "Aktives Profil", "SYR.Profile", 21);
         $this->RegisterVariableBoolean("SleepMode", "Schlafmodus / Urlaub aktiv", "~Switch", 22);
+        $this->RegisterVariableString("DisplayOrientation", "Display Ausrichtung", "", 23);
         
         // --- 3. Messwerte & Wasser (Position 30 - 69) ---
         $this->RegisterVariableFloat("Temperature", "Wassertemperatur", "~Temperature", 30);
@@ -115,6 +117,8 @@ class SyrSafeTechConnect extends IPSModule {
         
         // --- 4. Leckage-Überwachung & Profileinstellungen (Position 70 - 99) ---
         $this->RegisterVariableInteger("MicroLeakTestStatus", "Mikroleckage Teststatus", "SYR.MicroLeakStatus", 70);
+        $this->RegisterVariableBoolean("LearningPhaseActive", "Lernphase aktiv", "~Switch", 72);
+        
         $this->RegisterVariableFloat("P1_MaxVolume", "Profil 1 (Anwesend): Max. Volumen", "SYR.Volume", 75);
         $this->RegisterVariableInteger("P1_MaxTime", "Profil 1 (Anwesend): Max. Zeit", "SYR.Minutes", 76);
         $this->RegisterVariableFloat("P1_MaxFlow", "Profil 1 (Anwesend): Max. Durchfluss", "SYR.Flow", 77);
@@ -153,11 +157,12 @@ class SyrSafeTechConnect extends IPSModule {
             if (isset($data['getSRN'])) $this->SetValue("SerialNumber", (string)$data['getSRN']);
             if (isset($data['getVER'])) $this->SetValue("Firmware", (string)$data['getVER']);
             if (isset($data['getMAC'])) $this->SetValue("MacAddress", (string)$data['getMAC']);
+            if (isset($data['getWIP'])) $this->SetValue("IpAddress", (string)$data['getWIP']);
             if (isset($data['getWFC'])) $this->SetValue("SSID", (string)$data['getWFC']);
             if (isset($data['getWFR'])) $this->SetValue("RSSI", (int)$data['getWFR']);
             
             if (isset($data['getWFS'])) {
-                $status = ($data['getWFS'] == 2) ? "Verbunden" : "Getrennt (Code: " . $data['getWFS'] . ")";
+                $status = ($data['getWFS'] == 2) ? "Verbunden (Lokal)" : "Getrennt (Code: " . $data['getWFS'] . ")";
                 $this->SetValue("ConnectionStatus", $status);
             }
 
@@ -169,12 +174,12 @@ class SyrSafeTechConnect extends IPSModule {
             if (isset($data['getPRF'])) $this->SetValue("ActiveProfile", (int)$data['getPRF']);
             if (isset($data['getSLE'])) $this->SetValue("SleepMode", ((int)$data['getSLE'] === 1));
 
-            // Messwerte & Wasser
+            // Messwerte & Wasser (Sicherer Umgang mit leeren/strich-Werten)
             if (isset($data['getCEL'])) {
                 $this->SetValue("Temperature", (float)$data['getCEL'] / 10);
             }
-            if (isset($data['getBAR'])) {
-                $druck = (float)str_replace(" mbar", "", $data['getBAR']);
+            if (isset($data['getBAR']) && $data['getBAR'] !== "-") {
+                $druck = (float)str_replace([" mbar", " bar"], "", $data['getBAR']);
                 $this->SetValue("Pressure", $druck);
             }
             if (isset($data['getFLO'])) $this->SetValue("Flow", (float)$data['getFLO']);
@@ -184,12 +189,13 @@ class SyrSafeTechConnect extends IPSModule {
                 $this->SetValue("CurrentTapVolume", $avoVal / 1000);
             }
             if (isset($data['getLTV'])) $this->SetValue("LastTapVolume", (float)$data['getLTV']);
-            if (isset($data['getVOL']) && $data['getVOL'] !== "ERROR: ADM") {
+            if (isset($data['getVOL']) && $data['getVOL'] !== "ERROR: ADM" && $data['getVOL'] !== "-") {
                 $this->SetValue("TotalVolume", (float)$data['getVOL']);
             }
 
             // Leckage-Überwachung & Profileinstellungen
             if (isset($data['getDSV'])) $this->SetValue("MicroLeakTestStatus", (int)$data['getDSV']);
+            if (isset($data['getDMA'])) $this->SetValue("LearningPhaseActive", ((int)$data['getDMA'] === 1));
             
             if (isset($data['getPV1'])) $this->SetValue("P1_MaxVolume", (float)$data['getPV1']);
             if (isset($data['getPT1'])) $this->SetValue("P1_MaxTime", (int)$data['getPT1']);
@@ -202,7 +208,7 @@ class SyrSafeTechConnect extends IPSModule {
             if (isset($data['getPM2'])) $this->SetValue("P2_MicroLeak", (bool)$data['getPM2']);
             
             // Gerätestatus & Diagnose
-            if (isset($data['getBAT']) && $data['getBAT'] !== "ERROR: ADM") {
+            if (isset($data['getBAT']) && $data['getBAT'] !== "ERROR: ADM" && $data['getBAT'] !== "-") {
                 $batt = (float)str_replace(',', '.', $data['getBAT']);
                 $this->SetValue("BatteryVoltage", $batt);
             }
@@ -211,7 +217,6 @@ class SyrSafeTechConnect extends IPSModule {
                 $this->SetValue("AlarmState", $alarmCode);
             }
             
-            // Aufbereitung der Alarm-Klartextmeldung
             if (isset($data['getALM']) && $data['getALM'] !== "ERROR: ADM") {
                 $parsedMessage = $this->ParseAlarmMessage((string)$data['getALM']);
                 $this->SetValue("AlarmMessage", $parsedMessage);
