@@ -133,11 +133,9 @@ class SyrSafeTechConnect extends IPSModule {
         $ip = $this->ReadPropertyString("IPAddress");
         if (empty($ip)) return;
 
-        // 1. Admin-Modus aktivieren
         $this->FetchData("/safe-tec/set/ADM/(2)f");
         usleep(200000); 
         
-        // 2. Daten abrufen
         $response = $this->FetchData("/safe-tec/get/all");
         if (!$response) {
             $this->SendDebug("UpdateData", "Gerät nicht erreichbar", 0);
@@ -146,7 +144,6 @@ class SyrSafeTechConnect extends IPSModule {
         
         $data = json_decode($response, true);
         if (is_array($data)) {
-            // System & Netzwerk
             if (isset($data['getSRN'])) $this->SetValue("SerialNumber", (string)$data['getSRN']);
             if (isset($data['getVER'])) $this->SetValue("Firmware", (string)$data['getVER']);
             if (isset($data['getMAC'])) $this->SetValue("MacAddress", (string)$data['getMAC']);
@@ -159,7 +156,6 @@ class SyrSafeTechConnect extends IPSModule {
                 $this->SetValue("ConnectionStatus", $status);
             }
 
-            // Steuerung & Profile
             if (isset($data['getAB'])) {
                 $isOpen = ($data['getAB'] == "1");
                 $this->SetValue("ValveState", $isOpen);
@@ -167,7 +163,6 @@ class SyrSafeTechConnect extends IPSModule {
             if (isset($data['getPRF'])) $this->SetValue("ActiveProfile", (int)$data['getPRF']);
             if (isset($data['getSLE'])) $this->SetValue("SleepMode", ((int)$data['getSLE'] === 1));
 
-            // Messwerte & Wasser
             if (isset($data['getCEL'])) {
                 $this->SetValue("Temperature", (float)$data['getCEL'] / 10);
             }
@@ -188,7 +183,6 @@ class SyrSafeTechConnect extends IPSModule {
                 $this->SetValue("TotalVolume", (float)$volStr);
             }
 
-            // Leckage-Überwachung & Profileinstellungen
             if (isset($data['getDSV'])) $this->SetValue("MicroLeakTestStatus", (int)$data['getDSV']);
             if (isset($data['getSLP'])) $this->SetValue("LearningPhaseActive", ((int)$data['getSLP'] === 1));
             
@@ -202,7 +196,6 @@ class SyrSafeTechConnect extends IPSModule {
             if (isset($data['getPF2'])) $this->SetValue("P2_MaxFlow", (float)$data['getPF2']);
             if (isset($data['getPM2'])) $this->SetValue("P2_MicroLeak", ((int)$data['getPM2'] === 1));
             
-            // Gerätestatus & Diagnose
             if (isset($data['getBAT']) && $data['getBAT'] !== "ERROR: ADM" && $data['getBAT'] !== "-") {
                 $batt = (float)str_replace(',', '.', $data['getBAT']);
                 $this->SetValue("BatteryVoltage", $batt);
@@ -275,18 +268,25 @@ class SyrSafeTechConnect extends IPSModule {
         $ip = $this->ReadPropertyString("IPAddress");
         if (empty($ip)) return;
 
-        // 1. Admin-Modus zwingend vor dem Schalten aktivieren!
-        $this->FetchData("/safe-tec/set/ADM/(2)f");
-        usleep(200000); // 200 ms warten
+        // 1. Admin-Modus aktivieren und Antwort loggen
+        $adminRes = $this->FetchData("/safe-tec/set/ADM/(2)f");
+        $this->SendDebug("SetValveState", "Admin-Modus Antwort: " . $adminRes, 0);
+        usleep(300000); 
 
-        // 2. Ventil-Endpunkt aufrufen (1 = Öffnen, 2 = Schließen)
+        // 2. Ventil-Befehl senden (Variante 1: Kleinbuchstaben ohne f)
         $endpointVal = $State ? 1 : 2; 
-        $endpoint = "/safe-tec/set/AB/(" . $endpointVal . ")f";
+        $endpoint = "/safe-tec/set/ab/" . $endpointVal;
+        $response = $this->FetchData($endpoint);
+        $this->SendDebug("SetValveState", "Ventil Cmd ({$endpoint}) Antwort: " . $response, 0);
+
+        // Falls die erste Variante leer ist oder einen Fehler wirft, alternative Schreibweise testen
+        if (empty($response) || strpos($response, "ERROR") !== false) {
+            $endpointAlt = "/safe-tec/set/AB/(" . $endpointVal . ")f";
+            $responseAlt = $this->FetchData($endpointAlt);
+            $this->SendDebug("SetValveState", "Ventil Alt-Cmd ({$endpointAlt}) Antwort: " . $responseAlt, 0);
+        }
         
-        $this->FetchData($endpoint);
-        
-        // 1 Sekunde warten, damit das physische Ventil reagieren kann, dann Daten neu einlesen
-        usleep(1000000); 
+        usleep(1500000); 
         $this->UpdateData();
     }
 
