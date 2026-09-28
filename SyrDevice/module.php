@@ -37,6 +37,12 @@ class SyrSafeTechConnect extends IPSModule {
             IPS_SetVariableProfileAssociation("SYR.Alarm", 4, "Mikroleckage", "Warning", 0xFF0000);
         }
         
+        if (!IPS_VariableProfileExists("SYR.RSSI")) {
+            IPS_CreateVariableProfile("SYR.RSSI", 1); // 1 = Integer
+            IPS_SetVariableProfileText("SYR.RSSI", "", " dBm");
+            IPS_SetVariableProfileIcon("SYR.RSSI", "Network");
+        }
+        
         if (!IPS_VariableProfileExists("SYR.Flow")) {
             IPS_CreateVariableProfile("SYR.Flow", 2);
             IPS_SetVariableProfileText("SYR.Flow", "", " l/h");
@@ -75,7 +81,7 @@ class SyrSafeTechConnect extends IPSModule {
         $this->RegisterVariableString("Firmware", "Firmware Version", "", 11);
         $this->RegisterVariableString("MacAddress", "MAC-Adresse", "", 12);
         $this->RegisterVariableString("SSID", "WLAN Name", "", 13);
-        $this->RegisterVariableInteger("RSSI", "WLAN Signalstärke", "~Intensity.100", 14);
+        $this->RegisterVariableInteger("RSSI", "WLAN Signalstärke", "SYR.RSSI", 14);
         $this->RegisterVariableString("ConnectionStatus", "Verbindungsstatus", "", 15);
         
         // --- 2. Steuerung & Profile (Position 20 - 29) ---
@@ -104,7 +110,7 @@ class SyrSafeTechConnect extends IPSModule {
         $ip = $this->ReadPropertyString("IPAddress");
         if (empty($ip)) return;
 
-        // 1. Admin-Modus aktivieren (schaltet geschützte Werte frei)
+        // 1. Admin-Modus aktivieren
         $this->FetchData("/safe-tec/set/ADM/(2)f");
         usleep(200000); 
         
@@ -146,18 +152,16 @@ class SyrSafeTechConnect extends IPSModule {
             if (isset($data['getFLO'])) $this->SetValue("Flow", (float)$data['getFLO']);
             if (isset($data['getCEL'])) $this->SetValue("Conductivity", (float)$data['getCEL']);
             
-            // Zapfvolumina umrechnen/zuweisen
             if (isset($data['getAVO'])) {
                 $avoVal = (float)str_replace(["mL", " "], "", $data['getAVO']);
-                $this->SetValue("CurrentTapVolume", $avoVal / 1000); // Umrechnung mL zu Litern
+                $this->SetValue("CurrentTapVolume", $avoVal / 1000);
             }
             if (isset($data['getLTV'])) $this->SetValue("LastTapVolume", (float)$data['getLTV']);
-            
             if (isset($data['getVOL']) && $data['getVOL'] !== "ERROR: ADM") {
                 $this->SetValue("TotalVolume", (float)$data['getVOL']);
             }
             
-            // Gerätestatus & Diagnose (Batterie hat Komma im API-String wie "9,42")
+            // Gerätestatus & Diagnose
             if (isset($data['getBAT']) && $data['getBAT'] !== "ERROR: ADM") {
                 $batt = (float)str_replace(',', '.', $data['getBAT']);
                 $this->SetValue("BatteryVoltage", $batt);
@@ -166,13 +170,61 @@ class SyrSafeTechConnect extends IPSModule {
                 $alarmCode = ($data['getALA'] == "FF") ? 0 : (int)$data['getALA'];
                 $this->SetValue("AlarmState", $alarmCode);
             }
+            
+            // Aufbereitung der Alarm-Klartextmeldung
             if (isset($data['getALM']) && $data['getALM'] !== "ERROR: ADM") {
-                $this->SetValue("AlarmMessage", (string)$data['getALM']);
+                $parsedMessage = $this->ParseAlarmMessage((string)$data['getALM']);
+                $this->SetValue("AlarmMessage", $parsedMessage);
             }
+
             if (isset($data['getBUZ'])) {
                 $this->SetValue("BuzzerActive", ((int)$data['getBUZ'] === 1));
             }
         }
+    }
+
+    private function ParseAlarmMessage(string $rawAlarmString): string {
+        $alarmMapping = [
+            'A3' => 'Leckagevolumen erreicht',
+            'A4' => 'Leckagezeit erreicht',
+            'A5' => 'Maximale Durchflussmenge erreicht',
+            'A6' => 'Mikroleckage entdeckt',
+            'A7' => 'Externer Funksensor Leckage',
+            'A8' => 'Externer Kabelsensor Leckage',
+            'A9' => 'Drucksensor fehlerhaft',
+            'AA' => 'Temperatursensor fehlerhaft',
+            'AB' => 'Batterie schwach'
+        ];
+
+        preg_match_all('/[A-F0-9]{2}/i', $rawAlarmString, $matches);
+        if (empty($matches[0])) {
+            return $rawAlarmString;
+        }
+
+        $translatedList = [];
+        foreach ($matches[0] as $code) {
+            $code = strtoupper($code);
+            if ($code === 'FF') {
+                continue;
+            }
+            $translatedList[] = isset($alarmMapping[$code]) ? $alarmMapping[$code] : "Unbekannter Fehler ({$code})";
+        }
+
+        if (empty($translatedList)) {
+            return "Keine Fehler im Speicher (OK)";
+        }
+
+        $counted = array_count_values($translatedList);
+        $resultParts = [];
+        foreach ($counted as $msg => $count) {
+            if ($count > 1) {
+                $resultParts[] = "{$msg} ({$count}x)";
+            } else {
+                $resultParts[] = $msg;
+            }
+        }
+
+        return implode(', ', $resultParts);
     }
 
     public function SetValveState(bool $State) {
