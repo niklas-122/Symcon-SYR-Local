@@ -61,12 +61,6 @@ class SyrSafeTechConnect extends IPSModule {
             IPS_SetVariableProfileIcon("SYR.Minutes", "Clock");
         }
 
-        if (!IPS_VariableProfileExists("SYR.Conductivity")) {
-            IPS_CreateVariableProfile("SYR.Conductivity", 2);
-            IPS_SetVariableProfileText("SYR.Conductivity", "", " µS/cm");
-            IPS_SetVariableProfileIcon("SYR.Conductivity", "Lightning");
-        }
-
         if (!IPS_VariableProfileExists("SYR.Voltage")) {
             IPS_CreateVariableProfile("SYR.Voltage", 2);
             IPS_SetVariableProfileText("SYR.Voltage", "", " V");
@@ -113,7 +107,6 @@ class SyrSafeTechConnect extends IPSModule {
         $this->RegisterVariableFloat("CurrentTapVolume", "Aktuelles Zapfvolumen", "SYR.Volume", 55);
         $this->RegisterVariableFloat("LastTapVolume", "Letztes Zapfvolumen", "SYR.Volume", 58);
         $this->RegisterVariableFloat("TotalVolume", "Gesamtwasserverbrauch", "SYR.Volume", 60);
-        $this->RegisterVariableFloat("Conductivity", "Leitfähigkeit", "SYR.Conductivity", 65);
         
         // --- 4. Leckage-Überwachung & Profileinstellungen (Position 70 - 99) ---
         $this->RegisterVariableInteger("MicroLeakTestStatus", "Mikroleckage Teststatus", "SYR.MicroLeakStatus", 70);
@@ -174,7 +167,7 @@ class SyrSafeTechConnect extends IPSModule {
             if (isset($data['getPRF'])) $this->SetValue("ActiveProfile", (int)$data['getPRF']);
             if (isset($data['getSLE'])) $this->SetValue("SleepMode", ((int)$data['getSLE'] === 1));
 
-            // Messwerte & Wasser (Sicherer Umgang mit leeren/strich-Werten)
+            // Messwerte & Wasser (Temperatur korrekt durch 10 teilen)
             if (isset($data['getCEL'])) {
                 $this->SetValue("Temperature", (float)$data['getCEL'] / 10);
             }
@@ -193,19 +186,19 @@ class SyrSafeTechConnect extends IPSModule {
                 $this->SetValue("TotalVolume", (float)$data['getVOL']);
             }
 
-            // Leckage-Überwachung & Profileinstellungen
+            // Leckage-Überwachung & Profileinstellungen (Korrektes Mapping laut App-Status)
             if (isset($data['getDSV'])) $this->SetValue("MicroLeakTestStatus", (int)$data['getDSV']);
             if (isset($data['getDMA'])) $this->SetValue("LearningPhaseActive", ((int)$data['getDMA'] === 1));
             
             if (isset($data['getPV1'])) $this->SetValue("P1_MaxVolume", (float)$data['getPV1']);
             if (isset($data['getPT1'])) $this->SetValue("P1_MaxTime", (int)$data['getPT1']);
             if (isset($data['getPF1'])) $this->SetValue("P1_MaxFlow", (float)$data['getPF1']);
-            if (isset($data['getPM1'])) $this->SetValue("P1_MicroLeak", (bool)$data['getPM1']);
+            if (isset($data['getPM1'])) $this->SetValue("P1_MicroLeak", ((int)$data['getPM1'] === 1));
 
             if (isset($data['getPV2'])) $this->SetValue("P2_MaxVolume", (float)$data['getPV2']);
             if (isset($data['getPT2'])) $this->SetValue("P2_MaxTime", (int)$data['getPT2']);
             if (isset($data['getPF2'])) $this->SetValue("P2_MaxFlow", (float)$data['getPF2']);
-            if (isset($data['getPM2'])) $this->SetValue("P2_MicroLeak", (bool)$data['getPM2']);
+            if (isset($data['getPM2'])) $this->SetValue("P2_MicroLeak", ((int)$data['getPM2'] === 1));
             
             // Gerätestatus & Diagnose
             if (isset($data['getBAT']) && $data['getBAT'] !== "ERROR: ADM" && $data['getBAT'] !== "-") {
