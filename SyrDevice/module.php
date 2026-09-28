@@ -152,7 +152,7 @@ class SyrSafeTechConnect extends IPSModule {
             if (isset($data['getMAC'])) $this->SetValue("MacAddress", (string)$data['getMAC']);
             if (isset($data['getWIP'])) $this->SetValue("IpAddress", (string)$data['getWIP']);
             if (isset($data['getWFC'])) $this->SetValue("SSID", (string)$data['getWFC']);
-            if (isset($data['getWFR'])) $this->SetValue("RSSI", -(int)$data['getWFR']); // Korrektur zu negativem dBm-Wert
+            if (isset($data['getWFR'])) $this->SetValue("RSSI", -(int)$data['getWFR']);
             
             if (isset($data['getWFS'])) {
                 $status = ($data['getWFS'] == 2) ? "Verbunden (Lokal)" : "Getrennt (Code: " . $data['getWFS'] . ")";
@@ -183,13 +183,12 @@ class SyrSafeTechConnect extends IPSModule {
             }
             if (isset($data['getLTV'])) $this->SetValue("LastTapVolume", (float)$data['getLTV']);
             
-            // Gesamtwasserverbrauch bereinigen (String-Präfix "Vol[L]" entfernen)
             if (isset($data['getVOL']) && $data['getVOL'] !== "ERROR: ADM" && $data['getVOL'] !== "-") {
                 $volStr = str_replace(["Vol[L]", "L", " "], "", $data['getVOL']);
                 $this->SetValue("TotalVolume", (float)$volStr);
             }
 
-            // Leckage-Überwachung & Profileinstellungen (Korrektes Mapping auf getSLP für Selbstlernphase)
+            // Leckage-Überwachung & Profileinstellungen
             if (isset($data['getDSV'])) $this->SetValue("MicroLeakTestStatus", (int)$data['getDSV']);
             if (isset($data['getSLP'])) $this->SetValue("LearningPhaseActive", ((int)$data['getSLP'] === 1));
             
@@ -273,11 +272,20 @@ class SyrSafeTechConnect extends IPSModule {
     }
 
     public function SetValveState(bool $State) {
+        $ip = $this->ReadPropertyString("IPAddress");
+        if (empty($ip)) return;
+
+        // 1. Admin-Modus zwingend vor dem Schalten aktivieren!
+        $this->FetchData("/safe-tec/set/ADM/(2)f");
+        usleep(200000); // 200 ms warten
+
+        // 2. Ventil-Endpunkt aufrufen (1 = Öffnen, 2 = Schließen)
         $endpointVal = $State ? 1 : 2; 
         $endpoint = "/safe-tec/set/AB/(" . $endpointVal . ")f";
         
         $this->FetchData($endpoint);
         
+        // 1 Sekunde warten, damit das physische Ventil reagieren kann, dann Daten neu einlesen
         usleep(1000000); 
         $this->UpdateData();
     }
