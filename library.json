@@ -1,12 +1,9 @@
 {
-  "id": "{A1B2C3D4-E5F6-4A5B-8C9D-E0F1A2B3C4D5}",
-  "author": "IP-Symcon User",
-  "name": "Rika Firenet",
-  "url": "https://github.com/niklas-122/Symcon-Rika-Stove",
-  "compatibility": {
-    "version": "6.0"
-  },
-  "version": "1.0",
-  "build": 0,
-  "date": 0
+    "id": "{A1B2C3D4-E5F6-1234-5678-000000000001}",
+    "author": "Niklas",
+    "name": "SYR SafeTech Connect",
+    "url": "",
+    "version": "1.0",
+    "build": 1,
+    "date": 1718000000
 }
