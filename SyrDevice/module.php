@@ -38,7 +38,7 @@ class SyrSafeTechConnect extends IPSModule {
         }
         
         if (!IPS_VariableProfileExists("SYR.RSSI")) {
-            IPS_CreateVariableProfile("SYR.RSSI", 1); // 1 = Integer
+            IPS_CreateVariableProfile("SYR.RSSI", 1);
             IPS_SetVariableProfileText("SYR.RSSI", "", " dBm");
             IPS_SetVariableProfileIcon("SYR.RSSI", "Network");
         }
@@ -53,6 +53,12 @@ class SyrSafeTechConnect extends IPSModule {
             IPS_CreateVariableProfile("SYR.Volume", 2);
             IPS_SetVariableProfileText("SYR.Volume", "", " Liter");
             IPS_SetVariableProfileIcon("SYR.Volume", "Tap");
+        }
+
+        if (!IPS_VariableProfileExists("SYR.Minutes")) {
+            IPS_CreateVariableProfile("SYR.Minutes", 1);
+            IPS_SetVariableProfileText("SYR.Minutes", "", " min");
+            IPS_SetVariableProfileIcon("SYR.Minutes", "Clock");
         }
 
         if (!IPS_VariableProfileExists("SYR.Conductivity")) {
@@ -72,6 +78,14 @@ class SyrSafeTechConnect extends IPSModule {
             IPS_SetVariableProfileAssociation("SYR.Profile", 1, "Anwesend", "House", -1);
             IPS_SetVariableProfileAssociation("SYR.Profile", 2, "Abwesend", "Car", -1);
             IPS_SetVariableProfileAssociation("SYR.Profile", 3, "Urlaub", "Suitcase", -1);
+        }
+
+        if (!IPS_VariableProfileExists("SYR.MicroLeakStatus")) {
+            IPS_CreateVariableProfile("SYR.MicroLeakStatus", 1);
+            IPS_SetVariableProfileAssociation("SYR.MicroLeakStatus", 0, "Nicht aktiv", "Information", -1);
+            IPS_SetVariableProfileAssociation("SYR.MicroLeakStatus", 1, "Test aktiv", "Clock", 0x00FF00);
+            IPS_SetVariableProfileAssociation("SYR.MicroLeakStatus", 2, "Abgebrochen (Druckabfall)", "Warning", 0xFF0000);
+            IPS_SetVariableProfileAssociation("SYR.MicroLeakStatus", 3, "Übersprungen", "Info", -1);
         }
     }
 
@@ -99,11 +113,23 @@ class SyrSafeTechConnect extends IPSModule {
         $this->RegisterVariableFloat("TotalVolume", "Gesamtwasserverbrauch", "SYR.Volume", 60);
         $this->RegisterVariableFloat("Conductivity", "Leitfähigkeit", "SYR.Conductivity", 65);
         
-        // --- 4. Gerätestatus & Diagnose (Position 70 - 99) ---
-        $this->RegisterVariableFloat("BatteryVoltage", "Batteriespannung", "SYR.Voltage", 70);
-        $this->RegisterVariableInteger("AlarmState", "Alarm Code", "SYR.Alarm", 80);
-        $this->RegisterVariableString("AlarmMessage", "Aktuelle Meldung (Klartext)", "", 85);
-        $this->RegisterVariableBoolean("BuzzerActive", "Summer (Buzzer) aktiv", "~Switch", 90);
+        // --- 4. Leckage-Überwachung & Profileinstellungen (Position 70 - 99) ---
+        $this->RegisterVariableInteger("MicroLeakTestStatus", "Mikroleckage Teststatus", "SYR.MicroLeakStatus", 70);
+        $this->RegisterVariableFloat("P1_MaxVolume", "Profil 1 (Anwesend): Max. Volumen", "SYR.Volume", 75);
+        $this->RegisterVariableInteger("P1_MaxTime", "Profil 1 (Anwesend): Max. Zeit", "SYR.Minutes", 76);
+        $this->RegisterVariableFloat("P1_MaxFlow", "Profil 1 (Anwesend): Max. Durchfluss", "SYR.Flow", 77);
+        $this->RegisterVariableBoolean("P1_MicroLeak", "Profil 1 (Anwesend): Mikroleckage aktiv", "~Switch", 78);
+        
+        $this->RegisterVariableFloat("P2_MaxVolume", "Profil 2 (Abwesend): Max. Volumen", "SYR.Volume", 85);
+        $this->RegisterVariableInteger("P2_MaxTime", "Profil 2 (Abwesend): Max. Zeit", "SYR.Minutes", 86);
+        $this->RegisterVariableFloat("P2_MaxFlow", "Profil 2 (Abwesend): Max. Durchfluss", "SYR.Flow", 87);
+        $this->RegisterVariableBoolean("P2_MicroLeak", "Profil 2 (Abwesend): Mikroleckage aktiv", "~Switch", 88);
+
+        // --- 5. Gerätestatus & Diagnose (Position 100 - 120) ---
+        $this->RegisterVariableFloat("BatteryVoltage", "Batteriespannung", "SYR.Voltage", 100);
+        $this->RegisterVariableInteger("AlarmState", "Alarm Code", "SYR.Alarm", 110);
+        $this->RegisterVariableString("AlarmMessage", "Aktuelle Meldung (Klartext)", "", 115);
+        $this->RegisterVariableBoolean("BuzzerActive", "Summer (Buzzer) aktiv", "~Switch", 120);
     }
     
     public function UpdateData() {
@@ -144,13 +170,14 @@ class SyrSafeTechConnect extends IPSModule {
             if (isset($data['getSLE'])) $this->SetValue("SleepMode", ((int)$data['getSLE'] === 1));
 
             // Messwerte & Wasser
-            if (isset($data['getTMP'])) $this->SetValue("Temperature", (float)$data['getTMP']);
+            if (isset($data['getCEL'])) {
+                $this->SetValue("Temperature", (float)$data['getCEL'] / 10);
+            }
             if (isset($data['getBAR'])) {
                 $druck = (float)str_replace(" mbar", "", $data['getBAR']);
                 $this->SetValue("Pressure", $druck);
             }
             if (isset($data['getFLO'])) $this->SetValue("Flow", (float)$data['getFLO']);
-            if (isset($data['getCEL'])) $this->SetValue("Conductivity", (float)$data['getCEL']);
             
             if (isset($data['getAVO'])) {
                 $avoVal = (float)str_replace(["mL", " "], "", $data['getAVO']);
@@ -160,6 +187,19 @@ class SyrSafeTechConnect extends IPSModule {
             if (isset($data['getVOL']) && $data['getVOL'] !== "ERROR: ADM") {
                 $this->SetValue("TotalVolume", (float)$data['getVOL']);
             }
+
+            // Leckage-Überwachung & Profileinstellungen
+            if (isset($data['getDSV'])) $this->SetValue("MicroLeakTestStatus", (int)$data['getDSV']);
+            
+            if (isset($data['getPV1'])) $this->SetValue("P1_MaxVolume", (float)$data['getPV1']);
+            if (isset($data['getPT1'])) $this->SetValue("P1_MaxTime", (int)$data['getPT1']);
+            if (isset($data['getPF1'])) $this->SetValue("P1_MaxFlow", (float)$data['getPF1']);
+            if (isset($data['getPM1'])) $this->SetValue("P1_MicroLeak", (bool)$data['getPM1']);
+
+            if (isset($data['getPV2'])) $this->SetValue("P2_MaxVolume", (float)$data['getPV2']);
+            if (isset($data['getPT2'])) $this->SetValue("P2_MaxTime", (int)$data['getPT2']);
+            if (isset($data['getPF2'])) $this->SetValue("P2_MaxFlow", (float)$data['getPF2']);
+            if (isset($data['getPM2'])) $this->SetValue("P2_MicroLeak", (bool)$data['getPM2']);
             
             // Gerätestatus & Diagnose
             if (isset($data['getBAT']) && $data['getBAT'] !== "ERROR: ADM") {
