@@ -1,0 +1,11 @@
+{
+    "id": "{F1E2D3C4-B5A6-9876-5432-111111111111}",
+    "name": "SYR SafeTech Connect",
+    "type": 3,
+    "vendor": "SYR",
+    "aliases": ["SafeTech", "Pontos Base"],
+    "parentRequirements": [],
+    "childRequirements": [],
+    "implemented": [],
+    "prefix": "SYR"
+}

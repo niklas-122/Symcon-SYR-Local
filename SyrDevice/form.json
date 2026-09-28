@@ -1,0 +1,29 @@
+{
+    "elements": [
+        {
+            "type": "ValidationTextBox",
+            "name": "IPAddress",
+            "caption": "IP-Adresse des SYR Geräts"
+        },
+        {
+            "type": "NumberSpinner",
+            "name": "Port",
+            "caption": "Port (Standard: 5333)",
+            "minimum": 1,
+            "maximum": 65535
+        },
+        {
+            "type": "NumberSpinner",
+            "name": "UpdateInterval",
+            "caption": "Abfrageintervall (Sekunden)",
+            "minimum": 10
+        }
+    ],
+    "actions": [
+        {
+            "type": "Button",
+            "label": "Daten jetzt aktualisieren",
+            "onClick": "SYR_UpdateData($id);"
+        }
+    ]
+}
