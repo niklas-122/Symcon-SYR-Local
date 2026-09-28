@@ -71,7 +71,7 @@ class SyrSafeTechConnect extends IPSModule {
             IPS_CreateVariableProfile("SYR.Profile", 1);
             IPS_SetVariableProfileAssociation("SYR.Profile", 1, "Anwesend", "House", -1);
             IPS_SetVariableProfileAssociation("SYR.Profile", 2, "Abwesend", "Car", -1);
-            IPS_SetVariableProfileAssociation("SYR.Profile", 3, "Urlaub", "Suitcase", -1);
+            IPS_SetVariableProfileAssociation("SYR.Profile", 3, "Profil 3", "Suitcase", -1);
         }
 
         if (!IPS_VariableProfileExists("SYR.MicroLeakStatus")) {
@@ -97,8 +97,7 @@ class SyrSafeTechConnect extends IPSModule {
         $this->RegisterVariableBoolean("ValveState", "Ventilzustand", "SYR.Valve.Bool", 20);
         $this->EnableAction("ValveState"); 
         $this->RegisterVariableInteger("ActiveProfile", "Aktives Profil", "SYR.Profile", 21);
-        $this->RegisterVariableBoolean("SleepMode", "Schlafmodus / Urlaub aktiv", "~Switch", 22);
-        $this->RegisterVariableString("DisplayOrientation", "Display Ausrichtung", "", 23);
+        $this->RegisterVariableBoolean("SleepMode", "Schlafmodus aktiv", "~Switch", 22);
         
         // --- 3. Messwerte & Wasser (Position 30 - 69) ---
         $this->RegisterVariableFloat("Temperature", "Wassertemperatur", "~Temperature", 30);
@@ -110,7 +109,7 @@ class SyrSafeTechConnect extends IPSModule {
         
         // --- 4. Leckage-Überwachung & Profileinstellungen (Position 70 - 99) ---
         $this->RegisterVariableInteger("MicroLeakTestStatus", "Mikroleckage Teststatus", "SYR.MicroLeakStatus", 70);
-        $this->RegisterVariableBoolean("LearningPhaseActive", "Lernphase aktiv", "~Switch", 72);
+        $this->RegisterVariableBoolean("LearningPhaseActive", "Selbstlernphase aktiv", "~Switch", 72);
         
         $this->RegisterVariableFloat("P1_MaxVolume", "Profil 1 (Anwesend): Max. Volumen", "SYR.Volume", 75);
         $this->RegisterVariableInteger("P1_MaxTime", "Profil 1 (Anwesend): Max. Zeit", "SYR.Minutes", 76);
@@ -124,6 +123,7 @@ class SyrSafeTechConnect extends IPSModule {
 
         // --- 5. Gerätestatus & Diagnose (Position 100 - 120) ---
         $this->RegisterVariableFloat("BatteryVoltage", "Batteriespannung", "SYR.Voltage", 100);
+        $this->RegisterVariableFloat("MainsVoltage", "Netzspannung", "SYR.Voltage", 102);
         $this->RegisterVariableInteger("AlarmState", "Alarm Code", "SYR.Alarm", 110);
         $this->RegisterVariableString("AlarmMessage", "Aktuelle Meldung (Klartext)", "", 115);
         $this->RegisterVariableBoolean("BuzzerActive", "Summer (Buzzer) aktiv", "~Switch", 120);
@@ -152,7 +152,7 @@ class SyrSafeTechConnect extends IPSModule {
             if (isset($data['getMAC'])) $this->SetValue("MacAddress", (string)$data['getMAC']);
             if (isset($data['getWIP'])) $this->SetValue("IpAddress", (string)$data['getWIP']);
             if (isset($data['getWFC'])) $this->SetValue("SSID", (string)$data['getWFC']);
-            if (isset($data['getWFR'])) $this->SetValue("RSSI", (int)$data['getWFR']);
+            if (isset($data['getWFR'])) $this->SetValue("RSSI", -(int)$data['getWFR']); // Korrektur zu negativem dBm-Wert
             
             if (isset($data['getWFS'])) {
                 $status = ($data['getWFS'] == 2) ? "Verbunden (Lokal)" : "Getrennt (Code: " . $data['getWFS'] . ")";
@@ -167,7 +167,7 @@ class SyrSafeTechConnect extends IPSModule {
             if (isset($data['getPRF'])) $this->SetValue("ActiveProfile", (int)$data['getPRF']);
             if (isset($data['getSLE'])) $this->SetValue("SleepMode", ((int)$data['getSLE'] === 1));
 
-            // Messwerte & Wasser (Temperatur korrekt durch 10 teilen)
+            // Messwerte & Wasser
             if (isset($data['getCEL'])) {
                 $this->SetValue("Temperature", (float)$data['getCEL'] / 10);
             }
@@ -182,13 +182,16 @@ class SyrSafeTechConnect extends IPSModule {
                 $this->SetValue("CurrentTapVolume", $avoVal / 1000);
             }
             if (isset($data['getLTV'])) $this->SetValue("LastTapVolume", (float)$data['getLTV']);
+            
+            // Gesamtwasserverbrauch bereinigen (String-Präfix "Vol[L]" entfernen)
             if (isset($data['getVOL']) && $data['getVOL'] !== "ERROR: ADM" && $data['getVOL'] !== "-") {
-                $this->SetValue("TotalVolume", (float)$data['getVOL']);
+                $volStr = str_replace(["Vol[L]", "L", " "], "", $data['getVOL']);
+                $this->SetValue("TotalVolume", (float)$volStr);
             }
 
-            // Leckage-Überwachung & Profileinstellungen (Korrektes Mapping laut App-Status)
+            // Leckage-Überwachung & Profileinstellungen (Korrektes Mapping auf getSLP für Selbstlernphase)
             if (isset($data['getDSV'])) $this->SetValue("MicroLeakTestStatus", (int)$data['getDSV']);
-            if (isset($data['getDMA'])) $this->SetValue("LearningPhaseActive", ((int)$data['getDMA'] === 1));
+            if (isset($data['getSLP'])) $this->SetValue("LearningPhaseActive", ((int)$data['getSLP'] === 1));
             
             if (isset($data['getPV1'])) $this->SetValue("P1_MaxVolume", (float)$data['getPV1']);
             if (isset($data['getPT1'])) $this->SetValue("P1_MaxTime", (int)$data['getPT1']);
@@ -204,6 +207,10 @@ class SyrSafeTechConnect extends IPSModule {
             if (isset($data['getBAT']) && $data['getBAT'] !== "ERROR: ADM" && $data['getBAT'] !== "-") {
                 $batt = (float)str_replace(',', '.', $data['getBAT']);
                 $this->SetValue("BatteryVoltage", $batt);
+            }
+            if (isset($data['getNET']) && $data['getNET'] !== "-") {
+                $net = (float)str_replace(',', '.', $data['getNET']);
+                $this->SetValue("MainsVoltage", $net);
             }
             if (isset($data['getALA'])) {
                 $alarmCode = ($data['getALA'] == "FF") ? 0 : (int)$data['getALA'];
