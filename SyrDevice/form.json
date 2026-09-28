@@ -21,9 +21,9 @@
     ],
     "actions": [
         {
-            "type": "Switch",
+            "type": "CheckBox",
             "name": "FormValveSwitch",
-            "caption": "Ventil manuell schalten",
+            "caption": "Ventil geöffnet (Ein/Aus)",
             "onChange": "SYR_SetValveState($id, $FormValveSwitch);"
         },
         {
