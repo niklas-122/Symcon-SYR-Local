@@ -35,7 +35,6 @@ class SyrSafeTechConnect extends IPSModule {
             IPS_CreateVariableProfile("SYR.Valve", 1);
             IPS_SetVariableProfileAssociation("SYR.Valve", 1, "Geöffnet", "Drops", 0x00FF00);
             IPS_SetVariableProfileAssociation("SYR.Valve", 2, "Geschlossen", "Lock", 0xFF0000);
-            IPS_SetVariableProfileAction("SYR.Valve", $this->InstanceID); 
         }
         
         // Alarmstatus (FF wird zu 0, ansonsten Alarmcodes)
