@@ -1,39 +1,220 @@
 {
-    "elements": [
+  "elements": [
+    {
+      "type": "ExpansionPanel",
+      "caption": "Verbindungseinstellungen",
+      "items": [
         {
-            "type": "ValidationTextBox",
-            "name": "IPAddress",
-            "caption": "IP-Adresse des SYR Geräts"
+          "type": "ValidationTextBox",
+          "name": "IPAddress",
+          "caption": "IP-Adresse"
         },
         {
-            "type": "NumberSpinner",
-            "name": "Port",
-            "caption": "Port (Standard: 5333)",
-            "minimum": 1,
-            "maximum": 65535
+          "type": "NumberSpinner",
+          "name": "Port",
+          "caption": "Port",
+          "minimum": 1,
+          "maximum": 65535
         },
         {
-            "type": "NumberSpinner",
-            "name": "UpdateInterval",
-            "caption": "Abfrageintervall (Sekunden)",
-            "minimum": 0
+          "type": "NumberSpinner",
+          "name": "UpdateInterval",
+          "caption": "Abfrageintervall (Sekunden, 0 = Deaktiviert)",
+          "minimum": 0,
+          "maximum": 86400
         }
-    ],
-    "actions": [
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "type": "Row",
+      "items": [
         {
-            "type": "Button",
-            "caption": "Ventil öffnen",
-            "onClick": "SYR_SetValveState($id, true);"
-        },
-        {
-            "type": "Button",
-            "caption": "Ventil schließen",
-            "onClick": "SYR_SetValveState($id, false);"
-        },
-        {
-            "type": "Button",
-            "caption": "Daten jetzt aktualisieren",
-            "onClick": "SYR_UpdateData($id);"
+          "type": "Button",
+          "caption": "Status jetzt aktualisieren",
+          "onClick": "SYR_UpdateData($id);"
         }
-    ]
+      ]
+    },
+    {
+      "type": "ExpansionPanel",
+      "caption": "Absperrung & Profilauswahl",
+      "items": [
+        {
+          "type": "Row",
+          "items": [
+            {
+              "type": "Button",
+              "caption": "Ventil öffnen",
+              "onClick": "SYR_SetValveState($id, true);"
+            },
+            {
+              "type": "Button",
+              "caption": "Ventil schließen",
+              "onClick": "SYR_SetValveState($id, false);"
+            }
+          ]
+        },
+        {
+          "type": "Row",
+          "items": [
+            {
+              "type": "Select",
+              "name": "TargetProfile",
+              "caption": "Aktives Profil wählen",
+              "options": [
+                { "caption": "Profil 1: Anwesend", "value": 1 },
+                { "caption": "Profil 2: Abwesend", "value": 2 },
+                { "caption": "Profil 3", "value": 3 },
+                { "caption": "Profil 4", "value": 4 }
+              ]
+            },
+            {
+              "type": "Button",
+              "caption": "Profil aktivieren",
+              "onClick": "SYR_SetProfile($id, $TargetProfile);"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "ExpansionPanel",
+      "caption": "Profilabhängige Einstellungen anpassen",
+      "items": [
+        {
+          "type": "Row",
+          "items": [
+            {
+              "type": "Select",
+              "name": "EditProfileID",
+              "caption": "Ziel-Profil",
+              "options": [
+                { "caption": "Profil 1 (Anwesend)", "value": 1 },
+                { "caption": "Profil 2 (Abwesend)", "value": 2 }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "Row",
+          "items": [
+            {
+              "type": "NumberSpinner",
+              "name": "EditVolume",
+              "caption": "Volumenleckage (Liter)",
+              "minimum": 1,
+              "maximum": 5000,
+              "suffix": " L"
+            },
+            {
+              "type": "Button",
+              "caption": "Volumen setzen",
+              "onClick": "SYR_SetProfileVolume($id, $EditProfileID, $EditVolume);"
+            }
+          ]
+        },
+        {
+          "type": "Row",
+          "items": [
+            {
+              "type": "NumberSpinner",
+              "name": "EditTime",
+              "caption": "Zeitleckage (Minuten)",
+              "minimum": 1,
+              "maximum": 1440,
+              "suffix": " min"
+            },
+            {
+              "type": "Button",
+              "caption": "Zeit setzen",
+              "onClick": "SYR_SetProfileTime($id, $EditProfileID, $EditTime);"
+            }
+          ]
+        },
+        {
+          "type": "Row",
+          "items": [
+            {
+              "type": "NumberSpinner",
+              "name": "EditFlow",
+              "caption": "Durchflussleckage (l/h)",
+              "minimum": 100,
+              "maximum": 10000,
+              "suffix": " l/h"
+            },
+            {
+              "type": "Button",
+              "caption": "Durchfluss setzen",
+              "onClick": "SYR_SetProfileFlow($id, $EditProfileID, $EditFlow);"
+            }
+          ]
+        },
+        {
+          "type": "Row",
+          "items": [
+            {
+              "type": "CheckBox",
+              "name": "EditMicroLeak",
+              "caption": "Mikroleckage aktivieren"
+            },
+            {
+              "type": "Button",
+              "caption": "Mikroleckage speichern",
+              "onClick": "SYR_SetProfileMicroLeak($id, $EditProfileID, $EditMicroLeak);"
+            }
+          ]
+        },
+        {
+          "type": "Row",
+          "items": [
+            {
+              "type": "CheckBox",
+              "name": "EditBuzzer",
+              "caption": "Warnton (Buzzer) aktivieren"
+            },
+            {
+              "type": "Button",
+              "caption": "Warnton speichern",
+              "onClick": "SYR_SetProfileBuzzer($id, $EditProfileID, $EditBuzzer);"
+            }
+          ]
+        },
+        {
+          "type": "Row",
+          "items": [
+            {
+              "type": "CheckBox",
+              "name": "EditAlarm",
+              "caption": "Profil Leckagewarnung aktivieren"
+            },
+            {
+              "type": "Button",
+              "caption": "Leckagewarnung speichern",
+              "onClick": "SYR_SetProfileAlarm($id, $EditProfileID, $EditAlarm);"
+            }
+          ]
+        },
+        {
+          "type": "Row",
+          "items": [
+            {
+              "type": "NumberSpinner",
+              "name": "EditReturnTime",
+              "caption": "Rückkehrzeit zu Profil 1 (Stunden, 0 = Aus/Dauerhaft)",
+              "minimum": 0,
+              "maximum": 168,
+              "suffix": " Std"
+            },
+            {
+              "type": "Button",
+              "caption": "Rückkehrzeit setzen",
+              "onClick": "SYR_SetProfileReturnTime($id, $EditProfileID, $EditReturnTime);"
+            }
+          ]
+        }
+      ]
+    }
+  ]
 }
