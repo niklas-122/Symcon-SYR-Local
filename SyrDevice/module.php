@@ -124,13 +124,6 @@ class SyrSafeTechConnect extends IPSModule {
             IPS_SetVariableProfileAssociation("SYR.MicroLeakStatus", 3, "Übersprungen", "Info", -1);
         }
 
-        if (!IPS_VariableProfileExists("SYR.Hardness")) {
-            IPS_CreateVariableProfile("SYR.Hardness", 1);
-            IPS_SetVariableProfileAssociation("SYR.Hardness", 1, "Stufe 1", "Water", -1);
-            IPS_SetVariableProfileAssociation("SYR.Hardness", 2, "Stufe 2", "Water", -1);
-            IPS_SetVariableProfileAssociation("SYR.Hardness", 3, "Stufe 3", "Water", -1);
-        }
-
         if (!IPS_VariableProfileExists("SYR.DisplayOrientation")) {
             IPS_CreateVariableProfile("SYR.DisplayOrientation", 1);
             IPS_SetVariableProfileAssociation("SYR.DisplayOrientation", 1, "Standard (0°)", "Information", -1);
@@ -146,8 +139,8 @@ class SyrSafeTechConnect extends IPSModule {
         $v13 = $this->RegisterVariableFloat("CurrentTapVolume", "Aktuelles Zapfvolumen", "SYR.Volume", 13);
         $v14 = $this->RegisterVariableFloat("LastTapVolume", "Letztes Zapfvolumen", "SYR.Volume", 14);
         $v15 = $this->RegisterVariableFloat("TotalVolume", "Gesamtwasserverbrauch", "SYR.Volume", 15);
-        $v16 = $this->RegisterVariableInteger("WaterHardness", "Wasserhärte", "SYR.Hardness", 16);
-        $v17 = $this->RegisterVariableInteger("Conductivity", "Elektr. Leitfähigkeit", "SYR.Conductivity", 17);
+        $v16 = $this->RegisterVariableInteger("WaterHardness", "Wasserhärte", "", 16); // Keine Assoziationen, reine Zahl
+        $v17 = $this->RegisterVariableInteger("Conductivity", "Leitfähigkeit", "SYR.Conductivity", 17);
 
         IPS_SetPosition($v10, 10);
         IPS_SetPosition($v11, 11);
@@ -162,7 +155,7 @@ class SyrSafeTechConnect extends IPSModule {
         $v30 = $this->RegisterVariableBoolean("ValveAction", "Ventilschalter (Fahrbefehl)", "SYR.Valve.Bool", 30);
         $this->EnableAction("ValveAction"); 
         
-        // WICHTIG: ValveState ist nun rein informativ und besitzt KEIN EnableAction() mehr!
+        // ValveState ist rein informativ (KEIN EnableAction!)
         $v31 = $this->RegisterVariableInteger("ValveState", "Ventilzustand (Status)", "SYR.Valve.Int", 31);
         
         $v32 = $this->RegisterVariableInteger("ActiveProfile", "Aktives Profil", "SYR.Profile", 32);
@@ -923,7 +916,6 @@ class SyrSafeTechConnect extends IPSModule {
     }
 
     public function SetDisplayOrientation(int $orientation) {
-        // SafeTec erwartet für drp numerische Werte im Admin-Kontext oder mit Formatklammern
         $response = $this->SendAdminAndCommand("/safe-tec/set/drp/" . $orientation);
         if (empty($response) || strpos($response, "ERROR") !== false) {
             $this->SendAdminAndCommand("/safe-tec/set/DRP/(" . $orientation . ")f");
