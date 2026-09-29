@@ -28,7 +28,7 @@
   ],
   "actions": [
     {
-      "type": "Row",
+      "type": "RowLayout",
       "items": [
         {
           "type": "Button",
@@ -42,7 +42,7 @@
       "caption": "Absperrung & Profilauswahl",
       "items": [
         {
-          "type": "Row",
+          "type": "RowLayout",
           "items": [
             {
               "type": "Button",
@@ -57,7 +57,7 @@
           ]
         },
         {
-          "type": "Row",
+          "type": "RowLayout",
           "items": [
             {
               "type": "Select",
@@ -84,7 +84,7 @@
       "caption": "Profilabhängige Einstellungen anpassen",
       "items": [
         {
-          "type": "Row",
+          "type": "RowLayout",
           "items": [
             {
               "type": "Select",
@@ -98,15 +98,14 @@
           ]
         },
         {
-          "type": "Row",
+          "type": "RowLayout",
           "items": [
             {
               "type": "NumberSpinner",
               "name": "EditVolume",
-              "caption": "Volumenleckage (Liter)",
+              "caption": "Volumenleckage (in Litern)",
               "minimum": 1,
-              "maximum": 5000,
-              "suffix": " L"
+              "maximum": 5000
             },
             {
               "type": "Button",
@@ -116,15 +115,14 @@
           ]
         },
         {
-          "type": "Row",
+          "type": "RowLayout",
           "items": [
             {
               "type": "NumberSpinner",
               "name": "EditTime",
-              "caption": "Zeitleckage (Minuten)",
+              "caption": "Zeitleckage (in Minuten)",
               "minimum": 1,
-              "maximum": 1440,
-              "suffix": " min"
+              "maximum": 1440
             },
             {
               "type": "Button",
@@ -134,15 +132,14 @@
           ]
         },
         {
-          "type": "Row",
+          "type": "RowLayout",
           "items": [
             {
               "type": "NumberSpinner",
               "name": "EditFlow",
-              "caption": "Durchflussleckage (l/h)",
+              "caption": "Durchflussleckage (in l/h)",
               "minimum": 100,
-              "maximum": 10000,
-              "suffix": " l/h"
+              "maximum": 10000
             },
             {
               "type": "Button",
@@ -152,7 +149,7 @@
           ]
         },
         {
-          "type": "Row",
+          "type": "RowLayout",
           "items": [
             {
               "type": "CheckBox",
@@ -167,7 +164,7 @@
           ]
         },
         {
-          "type": "Row",
+          "type": "RowLayout",
           "items": [
             {
               "type": "CheckBox",
@@ -182,7 +179,7 @@
           ]
         },
         {
-          "type": "Row",
+          "type": "RowLayout",
           "items": [
             {
               "type": "CheckBox",
@@ -197,15 +194,14 @@
           ]
         },
         {
-          "type": "Row",
+          "type": "RowLayout",
           "items": [
             {
               "type": "NumberSpinner",
               "name": "EditReturnTime",
-              "caption": "Rückkehrzeit zu Profil 1 (Stunden, 0 = Aus/Dauerhaft)",
+              "caption": "Rückkehrzeit zu Profil 1 (in Stunden, 0 = Aus)",
               "minimum": 0,
-              "maximum": 168,
-              "suffix": " Std"
+              "maximum": 168
             },
             {
               "type": "Button",
