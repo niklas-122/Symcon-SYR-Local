@@ -102,14 +102,13 @@ class SyrSafeTechConnect extends IPSModule {
             IPS_SetVariableProfileIcon("SYR.Pressure.mBar", "Gauge");
         }
 
-        // Korrigiert auf Typ 2 (Float), damit Integer-Variablen mit Nachkommastellen oder Text-Suffix im WebFront fehlerfrei laufen
         if (!IPS_VariableProfileExists("SYR.Conductivity")) {
             IPS_CreateVariableProfile("SYR.Conductivity", 2);
             IPS_SetVariableProfileText("SYR.Conductivity", "", " µS/cm");
+            IPS_SetVariableProfileDigits("SYR.Conductivity", 0);
             IPS_SetVariableProfileIcon("SYR.Conductivity", "Electricity");
         }
 
-        // Wiederhergestellt: Wasserhärte in Stufen (1-3)
         if (!IPS_VariableProfileExists("SYR.Hardness")) {
             IPS_CreateVariableProfile("SYR.Hardness", 1);
             IPS_SetVariableProfileAssociation("SYR.Hardness", 1, "Stufe 1", "Water", -1);
@@ -148,8 +147,8 @@ class SyrSafeTechConnect extends IPSModule {
         $v13 = $this->RegisterVariableFloat("CurrentTapVolume", "Aktuelles Zapfvolumen", "SYR.Volume", 13);
         $v14 = $this->RegisterVariableFloat("LastTapVolume", "Letztes Zapfvolumen", "SYR.Volume", 14);
         $v15 = $this->RegisterVariableFloat("TotalVolume", "Gesamtwasserverbrauch", "SYR.Volume", 15);
-        $v16 = $this->RegisterVariableInteger("WaterHardness", "Wasserhärte", "SYR.Hardness", 16); // Zurück auf Stufen-Profil
-        $v17 = $this->RegisterVariableInteger("Conductivity", "Leitfähigkeit", "SYR.Conductivity", 17);
+        $v16 = $this->RegisterVariableInteger("WaterHardness", "Wasserhärte", "SYR.Hardness", 16);
+        $v17 = $this->RegisterVariableFloat("Conductivity", "Leitfähigkeit", "SYR.Conductivity", 17);
 
         IPS_SetPosition($v10, 10);
         IPS_SetPosition($v11, 11);
@@ -164,7 +163,6 @@ class SyrSafeTechConnect extends IPSModule {
         $v30 = $this->RegisterVariableBoolean("ValveAction", "Ventilschalter (Fahrbefehl)", "SYR.Valve.Bool", 30);
         $this->EnableAction("ValveAction"); 
         
-        // ValveState ist rein informativ (KEIN EnableAction!)
         $v31 = $this->RegisterVariableInteger("ValveState", "Ventilzustand (Status)", "SYR.Valve.Int", 31);
         
         $v32 = $this->RegisterVariableInteger("ActiveProfile", "Aktives Profil", "SYR.Profile", 32);
@@ -274,6 +272,9 @@ class SyrSafeTechConnect extends IPSModule {
         $ip = $this->ReadPropertyString("IPAddress");
         if (empty($ip)) return;
 
+        // Sicherstellen, dass alle Variablen existieren (falls mal eine gelöscht wurde)
+        $this->MaintainVariables();
+
         // Admin-Modus anfordern
         $this->FetchData("/safe-tec/set/ADM/(2)f");
         usleep(200000); 
@@ -311,11 +312,11 @@ class SyrSafeTechConnect extends IPSModule {
             }
             if (isset($data['getDMA'])) $this->SetValue("WaterHardness", (int)$data['getDMA']);
             
-            // Leitfähigkeit
+            // Leitfähigkeit als Float verarbeiten
             if (isset($data['getCND'])) {
-                $this->SetValue("Conductivity", (int)$data['getCND']);
+                $this->SetValue("Conductivity", (float)$data['getCND']);
             } elseif (isset($data['getCON'])) {
-                $this->SetValue("Conductivity", (int)$data['getCON']);
+                $this->SetValue("Conductivity", (float)$data['getCON']);
             }
 
             // Steuerung & Status
@@ -1028,7 +1029,7 @@ class SyrSafeTechConnect extends IPSModule {
                 break;
             default:
                 throw new Exception("Invalid Ident: " . $Ident);
-        }
+            }
     }
 
     private function FetchData($endpoint) {
