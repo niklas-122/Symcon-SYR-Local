@@ -14,7 +14,7 @@ class SyrSafeTechConnect extends IPSModule {
         $this->RegisterPropertyBoolean("EnableCloseNotification", true);
         $this->RegisterPropertyBoolean("EnableBatteryNotification", true);
         
-        // Interne Attribute als Benachrichtigungs-Sperre (einmalige Auslösung)
+        // Interne Attribute als Benachrichtigungs-Sperre
         $this->RegisterAttributeBoolean("CloseNotified", false);
         $this->RegisterAttributeBoolean("BatteryNotified", false);
         
@@ -36,7 +36,6 @@ class SyrSafeTechConnect extends IPSModule {
     }
 
     private function RegisterProfiles() {
-        // Integer-Profil für echten Ventilzustand (Status - rein informativ)
         if (!IPS_VariableProfileExists("SYR.Valve.Int")) {
             IPS_CreateVariableProfile("SYR.Valve.Int", 1);
             IPS_SetVariableProfileAssociation("SYR.Valve.Int", 10, "geschlossen", "Lock", 0xFF0000);
@@ -45,7 +44,6 @@ class SyrSafeTechConnect extends IPSModule {
             IPS_SetVariableProfileAssociation("SYR.Valve.Int", 21, "öffnet", "Clock", 0x00FF00);
         }
 
-        // Bool-Profil für Ventil-Fahrbefehl (Aktion)
         if (!IPS_VariableProfileExists("SYR.Valve.Bool")) {
             IPS_CreateVariableProfile("SYR.Valve.Bool", 0);
             IPS_SetVariableProfileAssociation("SYR.Valve.Bool", true, "Öffnen", "Drops", 0x00FF00);
@@ -137,79 +135,128 @@ class SyrSafeTechConnect extends IPSModule {
     }
 
     private function MaintainVariables() {
-        // --- 1. Messwerte & Sensoren (Oben) ---
-        $this->RegisterVariableInteger("Pressure", "Wasserdruck", "SYR.Pressure.mBar", 10);
-        $this->RegisterVariableFloat("Temperature", "Wassertemperatur", "~Temperature", 11);
-        $this->RegisterVariableFloat("Flow", "Aktueller Durchfluss", "SYR.Flow", 12);
-        $this->RegisterVariableFloat("CurrentTapVolume", "Aktuelles Zapfvolumen", "SYR.Volume", 13);
-        $this->RegisterVariableFloat("LastTapVolume", "Letztes Zapfvolumen", "SYR.Volume", 14);
-        $this->RegisterVariableFloat("TotalVolume", "Gesamtwasserverbrauch", "SYR.Volume", 15);
-        $this->RegisterVariableInteger("WaterHardness", "Wasserhärte", "SYR.Hardness", 16);
+        // --- 1. Messwerte & Sensoren (Pos 10 - 29) ---
+        $v10 = $this->RegisterVariableInteger("Pressure", "Wasserdruck", "SYR.Pressure.mBar", 10);
+        $v11 = $this->RegisterVariableFloat("Temperature", "Wassertemperatur", "~Temperature", 11);
+        $v12 = $this->RegisterVariableFloat("Flow", "Aktueller Durchfluss", "SYR.Flow", 12);
+        $v13 = $this->RegisterVariableFloat("CurrentTapVolume", "Aktuelles Zapfvolumen", "SYR.Volume", 13);
+        $v14 = $this->RegisterVariableFloat("LastTapVolume", "Letztes Zapfvolumen", "SYR.Volume", 14);
+        $v15 = $this->RegisterVariableFloat("TotalVolume", "Gesamtwasserverbrauch", "SYR.Volume", 15);
+        $v16 = $this->RegisterVariableInteger("WaterHardness", "Wasserhärte", "SYR.Hardness", 16);
 
-        // --- 2. Steuerung & Hauptzustand ---
-        $this->RegisterVariableBoolean("ValveAction", "Ventilschalter (Fahrbefehl)", "SYR.Valve.Bool", 30);
+        IPS_SetPosition($v10, 10);
+        IPS_SetPosition($v11, 11);
+        IPS_SetPosition($v12, 12);
+        IPS_SetPosition($v13, 13);
+        IPS_SetPosition($v14, 14);
+        IPS_SetPosition($v15, 15);
+        IPS_SetPosition($v16, 16);
+
+        // --- 2. Steuerung & Hauptzustand (Pos 30 - 49) ---
+        $v30 = $this->RegisterVariableBoolean("ValveAction", "Ventilschalter (Fahrbefehl)", "SYR.Valve.Bool", 30);
         $this->EnableAction("ValveAction"); 
-        $this->RegisterVariableInteger("ValveState", "Ventilzustand (Status)", "SYR.Valve.Int", 31);
-        $this->RegisterVariableInteger("ActiveProfile", "Aktives Profil", "SYR.Profile", 32);
+        $v31 = $this->RegisterVariableInteger("ValveState", "Ventilzustand (Status)", "SYR.Valve.Int", 31);
+        $v32 = $this->RegisterVariableInteger("ActiveProfile", "Aktives Profil", "SYR.Profile", 32);
         $this->EnableAction("ActiveProfile");
-        $this->RegisterVariableBoolean("SleepMode", "Schlafmodus aktiv", "~Switch", 33);
-        $this->RegisterVariableInteger("DisplayOrientation", "Display Ausrichtung", "SYR.DisplayOrientation", 34);
+        $v33 = $this->RegisterVariableBoolean("SleepMode", "Schlafmodus aktiv", "~Switch", 33);
+        $v34 = $this->RegisterVariableInteger("DisplayOrientation", "Display Ausrichtung", "SYR.DisplayOrientation", 34);
         $this->EnableAction("DisplayOrientation");
 
-        // --- 3. Gerätestatus & Diagnose ---
-        $this->RegisterVariableFloat("BatteryVoltage", "Batteriespannung", "SYR.Voltage", 50);
-        $this->RegisterVariableFloat("MainsVoltage", "Netzspannung", "SYR.Voltage", 51);
-        $this->RegisterVariableInteger("AlarmState", "Alarm Code", "SYR.Alarm", 52);
-        $this->RegisterVariableString("AlarmMessage", "Aktuelle Meldung (Klartext)", "", 53);
-        $this->RegisterVariableBoolean("BuzzerActive", "Summer (Buzzer) aktiv", "~Switch", 54);
-        $this->RegisterVariableInteger("MicroLeakTestStatus", "Mikroleckage Teststatus", "SYR.MicroLeakStatus", 55);
-        $this->RegisterVariableBoolean("LearningPhaseActive", "Selbstlernphase aktiv", "~Switch", 56);
+        IPS_SetPosition($v30, 30);
+        IPS_SetPosition($v31, 31);
+        IPS_SetPosition($v32, 32);
+        IPS_SetPosition($v33, 33);
+        IPS_SetPosition($v34, 34);
+
+        // --- 3. Gerätestatus & Diagnose (Pos 50 - 69) ---
+        $v50 = $this->RegisterVariableFloat("BatteryVoltage", "Batteriespannung", "SYR.Voltage", 50);
+        $v51 = $this->RegisterVariableFloat("MainsVoltage", "Netzspannung", "SYR.Voltage", 51);
+        $v52 = $this->RegisterVariableInteger("AlarmState", "Alarm Code", "SYR.Alarm", 52);
+        $v53 = $this->RegisterVariableString("AlarmMessage", "Aktuelle Meldung (Klartext)", "", 53);
+        $v54 = $this->RegisterVariableBoolean("BuzzerActive", "Summer (Buzzer) aktiv", "~Switch", 54);
+        $v55 = $this->RegisterVariableInteger("MicroLeakTestStatus", "Mikroleckage Teststatus", "SYR.MicroLeakStatus", 55);
+        $v56 = $this->RegisterVariableBoolean("LearningPhaseActive", "Selbstlernphase aktiv", "~Switch", 56);
         $this->EnableAction("LearningPhaseActive");
-        $this->RegisterVariableInteger("LearningPhaseDays", "Selbstlernphase Dauer", "SYR.Days", 57);
+        $v57 = $this->RegisterVariableInteger("LearningPhaseDays", "Selbstlernphase Dauer", "SYR.Days", 57);
         $this->EnableAction("LearningPhaseDays");
 
-        // --- 4. System & Netzwerkinformationen ---
-        $this->RegisterVariableString("SerialNumber", "Seriennummer", "", 70);
-        $this->RegisterVariableString("Firmware", "Firmware Version", "", 71);
-        $this->RegisterVariableString("MacAddress", "MAC-Adresse", "", 72);
-        $this->RegisterVariableString("IpAddress", "IP-Adresse", "", 73);
-        $this->RegisterVariableString("Gateway", "Gateway IP", "", 74);
-        $this->RegisterVariableString("SSID", "WLAN Name", "", 75);
-        $this->RegisterVariableInteger("RSSI", "WLAN Signalstärke", "SYR.RSSI", 76);
-        $this->RegisterVariableString("ConnectionStatus", "Verbindungsstatus", "", 77);
+        IPS_SetPosition($v50, 50);
+        IPS_SetPosition($v51, 51);
+        IPS_SetPosition($v52, 52);
+        IPS_SetPosition($v53, 53);
+        IPS_SetPosition($v54, 54);
+        IPS_SetPosition($v55, 55);
+        IPS_SetPosition($v56, 56);
+        IPS_SetPosition($v57, 57);
 
-        // --- 5. Profileinstellungen (Ganz unten) ---
+        // --- 4. System & Netzwerkinformationen (Pos 70 - 89) ---
+        $v70 = $this->RegisterVariableString("SerialNumber", "Seriennummer", "", 70);
+        $v71 = $this->RegisterVariableString("Firmware", "Firmware Version", "", 71);
+        $v72 = $this->RegisterVariableString("MacAddress", "MAC-Adresse", "", 72);
+        $v73 = $this->RegisterVariableString("IpAddress", "IP-Adresse", "", 73);
+        $v74 = $this->RegisterVariableString("Gateway", "Gateway IP", "", 74);
+        $v75 = $this->RegisterVariableString("SSID", "WLAN Name", "", 75);
+        $v76 = $this->RegisterVariableInteger("RSSI", "WLAN Signalstärke", "SYR.RSSI", 76);
+        $v77 = $this->RegisterVariableString("ConnectionStatus", "Verbindungsstatus", "", 77);
+
+        IPS_SetPosition($v70, 70);
+        IPS_SetPosition($v71, 71);
+        IPS_SetPosition($v72, 72);
+        IPS_SetPosition($v73, 73);
+        IPS_SetPosition($v74, 74);
+        IPS_SetPosition($v75, 75);
+        IPS_SetPosition($v76, 76);
+        IPS_SetPosition($v77, 77);
+
+        // --- 5. Profileinstellungen (Pos 90+) ---
         // Profil 1 (Anwesend)
-        $this->RegisterVariableString("P1_Name", "Profil 1: Name", "", 90);
-        $this->RegisterVariableFloat("P1_MaxVolume", "Profil 1: Max. Volumen", "SYR.Volume", 91);
+        $v90 = $this->RegisterVariableString("P1_Name", "Profil 1: Name", "", 90);
+        $v91 = $this->RegisterVariableFloat("P1_MaxVolume", "Profil 1: Max. Volumen", "SYR.Volume", 91);
         $this->EnableAction("P1_MaxVolume");
-        $this->RegisterVariableInteger("P1_MaxTime", "Profil 1: Max. Zeit", "SYR.Minutes", 92);
+        $v92 = $this->RegisterVariableInteger("P1_MaxTime", "Profil 1: Max. Zeit", "SYR.Minutes", 92);
         $this->EnableAction("P1_MaxTime");
-        $this->RegisterVariableFloat("P1_MaxFlow", "Profil 1: Max. Durchfluss", "SYR.Flow", 93);
+        $v93 = $this->RegisterVariableFloat("P1_MaxFlow", "Profil 1: Max. Durchfluss", "SYR.Flow", 93);
         $this->EnableAction("P1_MaxFlow");
-        $this->RegisterVariableBoolean("P1_MicroLeak", "Profil 1: Mikroleckage aktiv", "~Switch", 94);
+        $v94 = $this->RegisterVariableBoolean("P1_MicroLeak", "Profil 1: Mikroleckage aktiv", "~Switch", 94);
         $this->EnableAction("P1_MicroLeak");
-        $this->RegisterVariableBoolean("P1_Buzzer", "Profil 1: Warnton", "~Switch", 95);
+        $v95 = $this->RegisterVariableBoolean("P1_Buzzer", "Profil 1: Warnton", "~Switch", 95);
         $this->EnableAction("P1_Buzzer");
-        $this->RegisterVariableBoolean("P1_Alarm", "Profil 1: Leckagewarnung", "~Switch", 96);
+        $v96 = $this->RegisterVariableBoolean("P1_Alarm", "Profil 1: Leckagewarnung", "~Switch", 96);
         $this->EnableAction("P1_Alarm");
 
+        IPS_SetPosition($v90, 90);
+        IPS_SetPosition($v91, 91);
+        IPS_SetPosition($v92, 92);
+        IPS_SetPosition($v93, 93);
+        IPS_SetPosition($v94, 94);
+        IPS_SetPosition($v95, 95);
+        IPS_SetPosition($v96, 96);
+
         // Profil 2 (Abwesend)
-        $this->RegisterVariableString("P2_Name", "Profil 2: Name", "", 100);
-        $this->RegisterVariableFloat("P2_MaxVolume", "Profil 2: Max. Volumen", "SYR.Volume", 101);
+        $v100 = $this->RegisterVariableString("P2_Name", "Profil 2: Name", "", 100);
+        $v101 = $this->RegisterVariableFloat("P2_MaxVolume", "Profil 2: Max. Volumen", "SYR.Volume", 101);
         $this->EnableAction("P2_MaxVolume");
-        $this->RegisterVariableInteger("P2_MaxTime", "Profil 2: Max. Zeit", "SYR.Minutes", 102);
+        $v102 = $this->RegisterVariableInteger("P2_MaxTime", "Profil 2: Max. Zeit", "SYR.Minutes", 102);
         $this->EnableAction("P2_MaxTime");
-        $this->RegisterVariableFloat("P2_MaxFlow", "Profil 2: Max. Durchfluss", "SYR.Flow", 103);
+        $v103 = $this->RegisterVariableFloat("P2_MaxFlow", "Profil 2: Max. Durchfluss", "SYR.Flow", 103);
         $this->EnableAction("P2_MaxFlow");
-        $this->RegisterVariableBoolean("P2_MicroLeak", "Profil 2: Mikroleckage aktiv", "~Switch", 104);
+        $v104 = $this->RegisterVariableBoolean("P2_MicroLeak", "Profil 2: Mikroleckage aktiv", "~Switch", 104);
         $this->EnableAction("P2_MicroLeak");
-        $this->RegisterVariableInteger("P2_ReturnTime", "Profil 2: Rückkehrzeit (Std)", "SYR.Minutes", 105);
+        $v105 = $this->RegisterVariableInteger("P2_ReturnTime", "Profil 2: Rückkehrzeit (Std)", "SYR.Minutes", 105);
         $this->EnableAction("P2_ReturnTime");
-        $this->RegisterVariableBoolean("P2_Buzzer", "Profil 2: Warnton", "~Switch", 106);
+        $v106 = $this->RegisterVariableBoolean("P2_Buzzer", "Profil 2: Warnton", "~Switch", 106);
         $this->EnableAction("P2_Buzzer");
-        $this->RegisterVariableBoolean("P2_Alarm", "Profil 2: Leckagewarnung", "~Switch", 107);
+        $v107 = $this->RegisterVariableBoolean("P2_Alarm", "Profil 2: Leckagewarnung", "~Switch", 107);
         $this->EnableAction("P2_Alarm");
+
+        IPS_SetPosition($v100, 100);
+        IPS_SetPosition($v101, 101);
+        IPS_SetPosition($v102, 102);
+        IPS_SetPosition($v103, 103);
+        IPS_SetPosition($v104, 104);
+        IPS_SetPosition($v105, 105);
+        IPS_SetPosition($v106, 106);
+        IPS_SetPosition($v107, 107);
     }
     
     public function UpdateData() {
@@ -271,15 +318,17 @@ class SyrSafeTechConnect extends IPSModule {
             if (isset($data['getSLE'])) $this->SetValue("SleepMode", ((int)$data['getSLE'] === 1));
             if (isset($data['getDRP'])) $this->SetValue("DisplayOrientation", (int)$data['getDRP']);
 
-            // Gerätestatus & Spannung mit 1 Nachkommastelle
+            // Gerätestatus & Spannung exakt mit 1 Nachkommastelle verarbeiten
             $battVal = 0.0;
             if (isset($data['getBAT']) && $data['getBAT'] !== "ERROR: ADM" && $data['getBAT'] !== "-") {
-                $battVal = (float)str_replace(',', '.', (string)$data['getBAT']);
-                $this->SetValue("BatteryVoltage", round($battVal, 1));
+                $rawBat = str_replace(',', '.', (string)$data['getBAT']);
+                $battVal = round((float)$rawBat, 1);
+                $this->SetValue("BatteryVoltage", $battVal);
             }
             if (isset($data['getNET']) && $data['getNET'] !== "-") {
-                $netVal = (float)str_replace(',', '.', (string)$data['getNET']);
-                $this->SetValue("MainsVoltage", round($netVal, 1));
+                $rawNet = str_replace(',', '.', (string)$data['getNET']);
+                $netVal = round((float)$rawNet, 1);
+                $this->SetValue("MainsVoltage", $netVal);
             }
 
             if (isset($data['getDSV'])) $this->SetValue("MicroLeakTestStatus", (int)$data['getDSV']);
@@ -348,7 +397,7 @@ class SyrSafeTechConnect extends IPSModule {
 
         // 1. Benachrichtigung bei Ventilschließung / Leckage
         if ($this->ReadPropertyBoolean("EnableCloseNotification")) {
-            if ($valveState === 10) { // Ventil geschlossen
+            if ($valveState === 10) { 
                 if (!$this->ReadAttributeBoolean("CloseNotified")) {
                     $reason = ($alarmMessage !== "Keine Fehler im Speicher (OK)") ? $alarmMessage : "Ventil wurde geschlossen / Leckageschutz ausgelöst";
                     WFC_SendNotification($webFrontID, "SYR SafeTech: Absperrung geschlossen!", "Grund: " . $reason, "Warning", 10);
@@ -859,7 +908,13 @@ class SyrSafeTechConnect extends IPSModule {
     }
 
     public function SetDisplayOrientation(int $orientation) {
-        $this->SendAdminAndCommand("/safe-tec/set/drp/" . $orientation);
+        // Versuche Kleinbuchstaben-Befehl
+        $response = $this->SendAdminAndCommand("/safe-tec/set/drp/" . $orientation);
+        
+        // Falls vom Gerät abgelehnt/ignoriert, probiere alternative Schreibweise mit Suffix (f)
+        if (empty($response) || strpos($response, "ERROR") !== false) {
+            $this->SendAdminAndCommand("/safe-tec/set/DRP/(" . $orientation . ")f");
+        }
     }
 
     public function SetLearningPhase(bool $active, int $days) {
