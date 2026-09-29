@@ -16,7 +16,7 @@
             "type": "NumberSpinner",
             "name": "UpdateInterval",
             "caption": "Abfrageintervall (Sekunden)",
-            "minimum": 10
+            "minimum": 0
         }
     ],
     "actions": [
