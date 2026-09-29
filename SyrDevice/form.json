@@ -47,12 +47,12 @@
             {
               "type": "Button",
               "caption": "Ventil öffnen",
-              "onClick": "SYR_SetValveState($id, true);"
+              "onClick": "SYR_SetValveState($id, 20);"
             },
             {
               "type": "Button",
               "caption": "Ventil schließen",
-              "onClick": "SYR_SetValveState($id, false);"
+              "onClick": "SYR_SetValveState($id, 10);"
             }
           ]
         },
@@ -74,6 +74,35 @@
               "type": "Button",
               "caption": "Profil aktivieren",
               "onClick": "SYR_SetProfile($id, $TargetProfile);"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "ExpansionPanel",
+      "caption": "Selbstlernphase",
+      "items": [
+        {
+          "type": "RowLayout",
+          "items": [
+            {
+              "type": "CheckBox",
+              "name": "EditSLPActive",
+              "caption": "Selbstlernphase aktiv"
+            },
+            {
+              "type": "NumberSpinner",
+              "name": "EditSLPDays",
+              "caption": "Dauer (7 bis 28 Tage)",
+              "minimum": 7,
+              "maximum": 28,
+              "step": 1
+            },
+            {
+              "type": "Button",
+              "caption": "Selbstlernphase speichern",
+              "onClick": "SYR_SetLearningPhase($id, $EditSLPActive, $EditSLPDays);"
             }
           ]
         }
