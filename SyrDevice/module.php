@@ -107,6 +107,13 @@ class SyrSafeTechConnect extends IPSModule {
             IPS_SetVariableProfileText("SYR.Conductivity", "", " µS/cm");
             IPS_SetVariableProfileIcon("SYR.Conductivity", "Electricity");
         }
+
+        // Neues Profil für Wasserhärte in °dH
+        if (!IPS_VariableProfileExists("SYR.Hardness.dH")) {
+            IPS_CreateVariableProfile("SYR.Hardness.dH", 1);
+            IPS_SetVariableProfileText("SYR.Hardness.dH", "", " °dH");
+            IPS_SetVariableProfileIcon("SYR.Hardness.dH", "Water");
+        }
         
         if (!IPS_VariableProfileExists("SYR.Profile")) {
             IPS_CreateVariableProfile("SYR.Profile", 1);
@@ -139,7 +146,7 @@ class SyrSafeTechConnect extends IPSModule {
         $v13 = $this->RegisterVariableFloat("CurrentTapVolume", "Aktuelles Zapfvolumen", "SYR.Volume", 13);
         $v14 = $this->RegisterVariableFloat("LastTapVolume", "Letztes Zapfvolumen", "SYR.Volume", 14);
         $v15 = $this->RegisterVariableFloat("TotalVolume", "Gesamtwasserverbrauch", "SYR.Volume", 15);
-        $v16 = $this->RegisterVariableInteger("WaterHardness", "Wasserhärte", "", 16); // Keine Assoziationen, reine Zahl
+        $v16 = $this->RegisterVariableInteger("WaterHardness", "Wasserhärte", "SYR.Hardness.dH", 16); // Zugewiesen an °dH-Profil
         $v17 = $this->RegisterVariableInteger("Conductivity", "Leitfähigkeit", "SYR.Conductivity", 17);
 
         IPS_SetPosition($v10, 10);
