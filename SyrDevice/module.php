@@ -1,4 +1,5 @@
 <?php
+
 class SyrSafeTechConnect extends IPSModule {
 
     public function Create() {
@@ -81,6 +82,19 @@ class SyrSafeTechConnect extends IPSModule {
             IPS_SetVariableProfileAssociation("SYR.MicroLeakStatus", 2, "Abgebrochen (Druckabfall)", "Warning", 0xFF0000);
             IPS_SetVariableProfileAssociation("SYR.MicroLeakStatus", 3, "Übersprungen", "Info", -1);
         }
+
+        if (!IPS_VariableProfileExists("SYR.Hardness")) {
+            IPS_CreateVariableProfile("SYR.Hardness", 1);
+            IPS_SetVariableProfileAssociation("SYR.Hardness", 1, "Stufe 1", "Water", -1);
+            IPS_SetVariableProfileAssociation("SYR.Hardness", 2, "Stufe 2", "Water", -1);
+            IPS_SetVariableProfileAssociation("SYR.Hardness", 3, "Stufe 3", "Water", -1);
+        }
+
+        if (!IPS_VariableProfileExists("SYR.DisplayOrientation")) {
+            IPS_CreateVariableProfile("SYR.DisplayOrientation", 1);
+            IPS_SetVariableProfileAssociation("SYR.DisplayOrientation", 1, "Standard", "Information", -1);
+            IPS_SetVariableProfileAssociation("SYR.DisplayOrientation", 2, "180° Gedreht", "Information", -1);
+        }
     }
 
     private function MaintainVariables() {
@@ -89,15 +103,18 @@ class SyrSafeTechConnect extends IPSModule {
         $this->RegisterVariableString("Firmware", "Firmware Version", "", 11);
         $this->RegisterVariableString("MacAddress", "MAC-Adresse", "", 12);
         $this->RegisterVariableString("IpAddress", "IP-Adresse", "", 13);
-        $this->RegisterVariableString("SSID", "WLAN Name", "", 14);
-        $this->RegisterVariableInteger("RSSI", "WLAN Signalstärke", "SYR.RSSI", 15);
-        $this->RegisterVariableString("ConnectionStatus", "Verbindungsstatus", "", 16);
+        $this->RegisterVariableString("Gateway", "Gateway IP", "", 14);
+        $this->RegisterVariableString("SSID", "WLAN Name", "", 15);
+        $this->RegisterVariableInteger("RSSI", "WLAN Signalstärke", "SYR.RSSI", 16);
+        $this->RegisterVariableString("ConnectionStatus", "Verbindungsstatus", "", 17);
         
         // --- 2. Steuerung & Profile (Position 20 - 29) ---
         $this->RegisterVariableBoolean("ValveState", "Ventilzustand", "SYR.Valve.Bool", 20);
         $this->EnableAction("ValveState"); 
         $this->RegisterVariableInteger("ActiveProfile", "Aktives Profil", "SYR.Profile", 21);
+        $this->EnableAction("ActiveProfile");
         $this->RegisterVariableBoolean("SleepMode", "Schlafmodus aktiv", "~Switch", 22);
+        $this->RegisterVariableInteger("DisplayOrientation", "Display Ausrichtung", "SYR.DisplayOrientation", 23);
         
         // --- 3. Messwerte & Wasser (Position 30 - 69) ---
         $this->RegisterVariableFloat("Temperature", "Wassertemperatur", "~Temperature", 30);
@@ -106,20 +123,30 @@ class SyrSafeTechConnect extends IPSModule {
         $this->RegisterVariableFloat("CurrentTapVolume", "Aktuelles Zapfvolumen", "SYR.Volume", 55);
         $this->RegisterVariableFloat("LastTapVolume", "Letztes Zapfvolumen", "SYR.Volume", 58);
         $this->RegisterVariableFloat("TotalVolume", "Gesamtwasserverbrauch", "SYR.Volume", 60);
+        $this->RegisterVariableInteger("WaterHardness", "Wasserhärte", "SYR.Hardness", 65);
         
         // --- 4. Leckage-Überwachung & Profileinstellungen (Position 70 - 99) ---
         $this->RegisterVariableInteger("MicroLeakTestStatus", "Mikroleckage Teststatus", "SYR.MicroLeakStatus", 70);
         $this->RegisterVariableBoolean("LearningPhaseActive", "Selbstlernphase aktiv", "~Switch", 72);
         
-        $this->RegisterVariableFloat("P1_MaxVolume", "Profil 1 (Anwesend): Max. Volumen", "SYR.Volume", 75);
-        $this->RegisterVariableInteger("P1_MaxTime", "Profil 1 (Anwesend): Max. Zeit", "SYR.Minutes", 76);
-        $this->RegisterVariableFloat("P1_MaxFlow", "Profil 1 (Anwesend): Max. Durchfluss", "SYR.Flow", 77);
-        $this->RegisterVariableBoolean("P1_MicroLeak", "Profil 1 (Anwesend): Mikroleckage aktiv", "~Switch", 78);
-        
-        $this->RegisterVariableFloat("P2_MaxVolume", "Profil 2 (Abwesend): Max. Volumen", "SYR.Volume", 85);
-        $this->RegisterVariableInteger("P2_MaxTime", "Profil 2 (Abwesend): Max. Zeit", "SYR.Minutes", 86);
-        $this->RegisterVariableFloat("P2_MaxFlow", "Profil 2 (Abwesend): Max. Durchfluss", "SYR.Flow", 87);
-        $this->RegisterVariableBoolean("P2_MicroLeak", "Profil 2 (Abwesend): Mikroleckage aktiv", "~Switch", 88);
+        // Profil 1 (Anwesend)
+        $this->RegisterVariableString("P1_Name", "Profil 1: Name", "", 74);
+        $this->RegisterVariableFloat("P1_MaxVolume", "Profil 1: Max. Volumen", "SYR.Volume", 75);
+        $this->RegisterVariableInteger("P1_MaxTime", "Profil 1: Max. Zeit", "SYR.Minutes", 76);
+        $this->RegisterVariableFloat("P1_MaxFlow", "Profil 1: Max. Durchfluss", "SYR.Flow", 77);
+        $this->RegisterVariableBoolean("P1_MicroLeak", "Profil 1: Mikroleckage aktiv", "~Switch", 78);
+        $this->RegisterVariableBoolean("P1_Buzzer", "Profil 1: Warnton", "~Switch", 79);
+        $this->RegisterVariableBoolean("P1_Alarm", "Profil 1: Leckagewarnung", "~Switch", 80);
+
+        // Profil 2 (Abwesend)
+        $this->RegisterVariableString("P2_Name", "Profil 2: Name", "", 84);
+        $this->RegisterVariableFloat("P2_MaxVolume", "Profil 2: Max. Volumen", "SYR.Volume", 85);
+        $this->RegisterVariableInteger("P2_MaxTime", "Profil 2: Max. Zeit", "SYR.Minutes", 86);
+        $this->RegisterVariableFloat("P2_MaxFlow", "Profil 2: Max. Durchfluss", "SYR.Flow", 87);
+        $this->RegisterVariableBoolean("P2_MicroLeak", "Profil 2: Mikroleckage aktiv", "~Switch", 88);
+        $this->RegisterVariableInteger("P2_ReturnTime", "Profil 2: Rückkehrzeit (Std)", "SYR.Minutes", 89);
+        $this->RegisterVariableBoolean("P2_Buzzer", "Profil 2: Warnton", "~Switch", 90);
+        $this->RegisterVariableBoolean("P2_Alarm", "Profil 2: Leckagewarnung", "~Switch", 91);
 
         // --- 5. Gerätestatus & Diagnose (Position 100 - 120) ---
         $this->RegisterVariableFloat("BatteryVoltage", "Batteriespannung", "SYR.Voltage", 100);
@@ -133,6 +160,7 @@ class SyrSafeTechConnect extends IPSModule {
         $ip = $this->ReadPropertyString("IPAddress");
         if (empty($ip)) return;
 
+        // Admin-Modus anfordern, um alle Variablen auslesen zu können
         $this->FetchData("/safe-tec/set/ADM/(2)f");
         usleep(200000); 
         
@@ -144,10 +172,12 @@ class SyrSafeTechConnect extends IPSModule {
         
         $data = json_decode($response, true);
         if (is_array($data)) {
+            // System & Netz
             if (isset($data['getSRN'])) $this->SetValue("SerialNumber", (string)$data['getSRN']);
             if (isset($data['getVER'])) $this->SetValue("Firmware", (string)$data['getVER']);
             if (isset($data['getMAC'])) $this->SetValue("MacAddress", (string)$data['getMAC']);
             if (isset($data['getWIP'])) $this->SetValue("IpAddress", (string)$data['getWIP']);
+            if (isset($data['getWGW'])) $this->SetValue("Gateway", (string)$data['getWGW']);
             if (isset($data['getWFC'])) $this->SetValue("SSID", (string)$data['getWFC']);
             if (isset($data['getWFR'])) $this->SetValue("RSSI", -(int)$data['getWFR']);
             
@@ -156,18 +186,24 @@ class SyrSafeTechConnect extends IPSModule {
                 $this->SetValue("ConnectionStatus", $status);
             }
 
+            // Steuerung
             if (isset($data['getAB'])) {
-                $isOpen = ($data['getAB'] == "1");
-                $this->SetValue("ValveState", $isOpen);
+                $this->SetValue("ValveState", ($data['getAB'] == "1"));
             }
             if (isset($data['getPRF'])) $this->SetValue("ActiveProfile", (int)$data['getPRF']);
             if (isset($data['getSLE'])) $this->SetValue("SleepMode", ((int)$data['getSLE'] === 1));
+            if (isset($data['getDRP'])) $this->SetValue("DisplayOrientation", (int)$data['getDRP']);
 
+            // Messwerte
             if (isset($data['getCEL'])) {
                 $this->SetValue("Temperature", (float)$data['getCEL'] / 10);
             }
             if (isset($data['getBAR']) && $data['getBAR'] !== "-") {
                 $druck = (float)str_replace([" mbar", " bar"], "", $data['getBAR']);
+                // Falls in mbar geliefert wird, in bar umrechnen
+                if (strpos($data['getBAR'], "mbar") !== false) {
+                    $druck = $druck / 1000;
+                }
                 $this->SetValue("Pressure", $druck);
             }
             if (isset($data['getFLO'])) $this->SetValue("Flow", (float)$data['getFLO']);
@@ -183,19 +219,30 @@ class SyrSafeTechConnect extends IPSModule {
                 $this->SetValue("TotalVolume", (float)$volStr);
             }
 
+            if (isset($data['getDMA'])) $this->SetValue("WaterHardness", (int)$data['getDMA']);
             if (isset($data['getDSV'])) $this->SetValue("MicroLeakTestStatus", (int)$data['getDSV']);
             if (isset($data['getSLP'])) $this->SetValue("LearningPhaseActive", ((int)$data['getSLP'] === 1));
             
+            // Profil 1
+            if (isset($data['getPN1'])) $this->SetValue("P1_Name", (string)$data['getPN1']);
             if (isset($data['getPV1'])) $this->SetValue("P1_MaxVolume", (float)$data['getPV1']);
             if (isset($data['getPT1'])) $this->SetValue("P1_MaxTime", (int)$data['getPT1']);
             if (isset($data['getPF1'])) $this->SetValue("P1_MaxFlow", (float)$data['getPF1']);
             if (isset($data['getPM1'])) $this->SetValue("P1_MicroLeak", ((int)$data['getPM1'] === 1));
+            if (isset($data['getPB1'])) $this->SetValue("P1_Buzzer", ((int)$data['getPB1'] === 1));
+            if (isset($data['getPA1'])) $this->SetValue("P1_Alarm", ((int)$data['getPA1'] === 1));
 
+            // Profil 2
+            if (isset($data['getPN2'])) $this->SetValue("P2_Name", (string)$data['getPN2']);
             if (isset($data['getPV2'])) $this->SetValue("P2_MaxVolume", (float)$data['getPV2']);
             if (isset($data['getPT2'])) $this->SetValue("P2_MaxTime", (int)$data['getPT2']);
             if (isset($data['getPF2'])) $this->SetValue("P2_MaxFlow", (float)$data['getPF2']);
             if (isset($data['getPM2'])) $this->SetValue("P2_MicroLeak", ((int)$data['getPM2'] === 1));
+            if (isset($data['getPR2'])) $this->SetValue("P2_ReturnTime", (int)$data['getPR2']);
+            if (isset($data['getPB2'])) $this->SetValue("P2_Buzzer", ((int)$data['getPB2'] === 1));
+            if (isset($data['getPA2'])) $this->SetValue("P2_Alarm", ((int)$data['getPA2'] === 1));
             
+            // Spannung & Alarm
             if (isset($data['getBAT']) && $data['getBAT'] !== "ERROR: ADM" && $data['getBAT'] !== "-") {
                 $batt = (float)str_replace(',', '.', $data['getBAT']);
                 $this->SetValue("BatteryVoltage", $batt);
@@ -268,18 +315,17 @@ class SyrSafeTechConnect extends IPSModule {
         $ip = $this->ReadPropertyString("IPAddress");
         if (empty($ip)) return;
 
-        // 1. Admin-Modus aktivieren und Antwort loggen
+        // Admin-Modus aktivieren
         $adminRes = $this->FetchData("/safe-tec/set/ADM/(2)f");
         $this->SendDebug("SetValveState", "Admin-Modus Antwort: " . $adminRes, 0);
         usleep(300000); 
 
-        // 2. Ventil-Befehl senden (Variante 1: Kleinbuchstaben ohne f)
+        // Ventil-Befehl senden
         $endpointVal = $State ? 1 : 2; 
         $endpoint = "/safe-tec/set/ab/" . $endpointVal;
         $response = $this->FetchData($endpoint);
         $this->SendDebug("SetValveState", "Ventil Cmd ({$endpoint}) Antwort: " . $response, 0);
 
-        // Falls die erste Variante leer ist oder einen Fehler wirft, alternative Schreibweise testen
         if (empty($response) || strpos($response, "ERROR") !== false) {
             $endpointAlt = "/safe-tec/set/AB/(" . $endpointVal . ")f";
             $responseAlt = $this->FetchData($endpointAlt);
@@ -290,10 +336,29 @@ class SyrSafeTechConnect extends IPSModule {
         $this->UpdateData();
     }
 
+    public function SetProfile(int $profileId) {
+        $ip = $this->ReadPropertyString("IPAddress");
+        if (empty($ip)) return;
+
+        // Admin-Modus aktivieren
+        $this->FetchData("/safe-tec/set/ADM/(2)f");
+        usleep(300000);
+
+        // Profil wechseln: /safe-tec/set/prf/X
+        $response = $this->FetchData("/safe-tec/set/prf/" . $profileId);
+        $this->SendDebug("SetProfile", "Profil Cmd Antwort: " . $response, 0);
+
+        usleep(500000);
+        $this->UpdateData();
+    }
+
     public function RequestAction($Ident, $Value) {
         switch ($Ident) {
             case "ValveState":
-                $this->SetValveState($Value);
+                $this->SetValveState((bool)$Value);
+                break;
+            case "ActiveProfile":
+                $this->SetProfile((int)$Value);
                 break;
             default:
                 throw new Exception("Invalid Ident");
@@ -315,4 +380,3 @@ class SyrSafeTechConnect extends IPSModule {
         return $result;
     }
 }
-?>
