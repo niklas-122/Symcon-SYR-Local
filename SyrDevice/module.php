@@ -109,11 +109,12 @@ class SyrSafeTechConnect extends IPSModule {
             IPS_SetVariableProfileIcon("SYR.Conductivity", "Electricity");
         }
 
-        if (!IPS_VariableProfileExists("SYR.Hardness")) {
-            IPS_CreateVariableProfile("SYR.Hardness", 1);
-            IPS_SetVariableProfileAssociation("SYR.Hardness", 1, "Stufe 1", "Water", -1);
-            IPS_SetVariableProfileAssociation("SYR.Hardness", 2, "Stufe 2", "Water", -1);
-            IPS_SetVariableProfileAssociation("SYR.Hardness", 3, "Stufe 3", "Water", -1);
+        // Profil für den berechneten, ungefähren Härtewert in °dH
+        if (!IPS_VariableProfileExists("SYR.Hardness.Estimated")) {
+            IPS_CreateVariableProfile("SYR.Hardness.Estimated", 2);
+            IPS_SetVariableProfileText("SYR.Hardness.Estimated", "", " °dH (ca.)");
+            IPS_SetVariableProfileDigits("SYR.Hardness.Estimated", 1);
+            IPS_SetVariableProfileIcon("SYR.Hardness.Estimated", "Water");
         }
         
         if (!IPS_VariableProfileExists("SYR.Profile")) {
@@ -147,7 +148,10 @@ class SyrSafeTechConnect extends IPSModule {
         $v13 = $this->RegisterVariableFloat("CurrentTapVolume", "Aktuelles Zapfvolumen", "SYR.Volume", 13);
         $v14 = $this->RegisterVariableFloat("LastTapVolume", "Letztes Zapfvolumen", "SYR.Volume", 14);
         $v15 = $this->RegisterVariableFloat("TotalVolume", "Gesamtwasserverbrauch", "SYR.Volume", 15);
-        $v16 = $this->RegisterVariableInteger("WaterHardness", "Wasserhärte", "SYR.Hardness", 16);
+        
+        // Geändert zu Float mit geschätztem °dH-Profil
+        $v16 = $this->RegisterVariableFloat("WaterHardness", "Wasserhärte (geschätzt)", "SYR.Hardness.Estimated", 16);
+        
         $v17 = $this->RegisterVariableFloat("Conductivity", "Leitfähigkeit", "SYR.Conductivity", 17);
 
         IPS_SetPosition($v10, 10);
@@ -272,7 +276,7 @@ class SyrSafeTechConnect extends IPSModule {
         $ip = $this->ReadPropertyString("IPAddress");
         if (empty($ip)) return;
 
-        // Sicherstellen, dass alle Variablen existieren (falls mal eine gelöscht wurde)
+        // Sicherstellen, dass alle Variablen existieren
         $this->MaintainVariables();
 
         // Admin-Modus anfordern
@@ -288,9 +292,12 @@ class SyrSafeTechConnect extends IPSModule {
         $data = json_decode($response, true);
         if (is_array($data)) {
             // Messwerte
+            $temp = 20.0;
             if (isset($data['getCEL'])) {
-                $this->SetValue("Temperature", (float)$data['getCEL'] / 10);
+                $temp = (float)$data['getCEL'] / 10;
+                $this->SetValue("Temperature", $temp);
             }
+            
             if (isset($data['getBAR']) && $data['getBAR'] !== "-") {
                 $druck = (float)str_replace([" mbar", " bar"], "", $data['getBAR']);
                 if (strpos($data['getBAR'], "mbar") === false && $druck < 50) {
@@ -310,13 +317,24 @@ class SyrSafeTechConnect extends IPSModule {
                 $volStr = str_replace(["Vol[L]", "L", " "], "", $data['getVOL']);
                 $this->SetValue("TotalVolume", (float)$volStr);
             }
-            if (isset($data['getDMA'])) $this->SetValue("WaterHardness", (int)$data['getDMA']);
             
-            // Leitfähigkeit als Float verarbeiten
+            // Leitfähigkeit auslesen
+            $conductivity = 0.0;
             if (isset($data['getCND'])) {
-                $this->SetValue("Conductivity", (float)$data['getCND']);
+                $conductivity = (float)$data['getCND'];
+                $this->SetValue("Conductivity", $conductivity);
             } elseif (isset($data['getCON'])) {
-                $this->SetValue("Conductivity", (float)$data['getCON']);
+                $conductivity = (float)$data['getCON'];
+                $this->SetValue("Conductivity", $conductivity);
+            }
+
+            // Ungefähre Wasserhärte aus Temperatur und Leitfähigkeit berechnen:
+            // 1. Temperaturkompensation auf 25 °C (ca. 2 % Korrektur pro Grad Abweichung)
+            // 2. Umrechnung von elektrischer Leitfähigkeit (µS/cm) in Gesamthärte (°dH) mittels Faustformel (Divisor ~33)
+            if ($conductivity > 0) {
+                $ec25 = $conductivity / (1 + 0.02 * ($temp - 25));
+                $estimateddH = $ec25 / 33.0;
+                $this->SetValue("WaterHardness", round($estimateddH, 1));
             }
 
             // Steuerung & Status
