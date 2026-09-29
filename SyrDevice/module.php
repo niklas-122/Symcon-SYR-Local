@@ -91,7 +91,7 @@ class SyrSafeTechConnect extends IPSModule {
             IPS_SetVariableProfileIcon("SYR.Days", "Calendar");
         }
 
-        // Spannung exakt mit 1 Nachkommastelle definieren
+        // Spannung als Float-Profil mit 1 Nachkommastelle
         if (!IPS_VariableProfileExists("SYR.Voltage")) {
             IPS_CreateVariableProfile("SYR.Voltage", 2);
             IPS_SetVariableProfileText("SYR.Voltage", "", " V");
@@ -131,88 +131,85 @@ class SyrSafeTechConnect extends IPSModule {
         if (!IPS_VariableProfileExists("SYR.DisplayOrientation")) {
             IPS_CreateVariableProfile("SYR.DisplayOrientation", 1);
             IPS_SetVariableProfileAssociation("SYR.DisplayOrientation", 1, "Standard", "Information", -1);
-            IPS_SetVariableProfileAssociation("SYR.DisplayOrientation", 2, "180° Gedreht", "Information", -1);
+            IPS_SetVariableProfileAssociation("SYR.DisplayOrientation", 2, "90° Gedreht", "Information", -1);
+            IPS_SetVariableProfileAssociation("SYR.DisplayOrientation", 3, "180° Gedreht", "Information", -1);
         }
     }
 
     private function MaintainVariables() {
-        // --- 1. System & Netzwerk ---
-        $this->RegisterVariableString("SerialNumber", "Seriennummer", "", 10);
-        $this->RegisterVariableString("Firmware", "Firmware Version", "", 11);
-        $this->RegisterVariableString("MacAddress", "MAC-Adresse", "", 12);
-        $this->RegisterVariableString("IpAddress", "IP-Adresse", "", 13);
-        $this->RegisterVariableString("Gateway", "Gateway IP", "", 14);
-        $this->RegisterVariableString("SSID", "WLAN Name", "", 15);
-        $this->RegisterVariableInteger("RSSI", "WLAN Signalstärke", "SYR.RSSI", 16);
-        $this->RegisterVariableString("ConnectionStatus", "Verbindungsstatus", "", 17);
-        
-        // --- 2. Steuerung & Profile ---
-        // Fahrbefehl (Aktion, schaltbar)
-        $this->RegisterVariableBoolean("ValveAction", "Ventilschalter (Fahrbefehl)", "SYR.Valve.Bool", 19);
+        // --- 1. Messwerte & Sensoren (Oben) ---
+        $this->RegisterVariableInteger("Pressure", "Wasserdruck", "SYR.Pressure.mBar", 10);
+        $this->RegisterVariableFloat("Temperature", "Wassertemperatur", "~Temperature", 11);
+        $this->RegisterVariableFloat("Flow", "Aktueller Durchfluss", "SYR.Flow", 12);
+        $this->RegisterVariableFloat("CurrentTapVolume", "Aktuelles Zapfvolumen", "SYR.Volume", 13);
+        $this->RegisterVariableFloat("LastTapVolume", "Letztes Zapfvolumen", "SYR.Volume", 14);
+        $this->RegisterVariableFloat("TotalVolume", "Gesamtwasserverbrauch", "SYR.Volume", 15);
+        $this->RegisterVariableInteger("WaterHardness", "Wasserhärte", "SYR.Hardness", 16);
+
+        // --- 2. Steuerung & Hauptzustand ---
+        $this->RegisterVariableBoolean("ValveAction", "Ventilschalter (Fahrbefehl)", "SYR.Valve.Bool", 30);
         $this->EnableAction("ValveAction"); 
-
-        // Zustand (Status - rein informativ, OHNE EnableAction!)
-        $this->RegisterVariableInteger("ValveState", "Ventilzustand (Status)", "SYR.Valve.Int", 20);
-
-        $this->RegisterVariableInteger("ActiveProfile", "Aktives Profil", "SYR.Profile", 21);
+        $this->RegisterVariableInteger("ValveState", "Ventilzustand (Status)", "SYR.Valve.Int", 31);
+        $this->RegisterVariableInteger("ActiveProfile", "Aktives Profil", "SYR.Profile", 32);
         $this->EnableAction("ActiveProfile");
-        $this->RegisterVariableBoolean("SleepMode", "Schlafmodus aktiv", "~Switch", 22);
-        $this->RegisterVariableInteger("DisplayOrientation", "Display Ausrichtung", "SYR.DisplayOrientation", 23);
-        
-        // --- 3. Messwerte & Wasser ---
-        $this->RegisterVariableFloat("Temperature", "Wassertemperatur", "~Temperature", 30);
-        $this->RegisterVariableInteger("Pressure", "Wasserdruck", "SYR.Pressure.mBar", 40);
-        $this->RegisterVariableFloat("Flow", "Aktueller Durchfluss", "SYR.Flow", 50);
-        $this->RegisterVariableFloat("CurrentTapVolume", "Aktuelles Zapfvolumen", "SYR.Volume", 55);
-        $this->RegisterVariableFloat("LastTapVolume", "Letztes Zapfvolumen", "SYR.Volume", 58);
-        $this->RegisterVariableFloat("TotalVolume", "Gesamtwasserverbrauch", "SYR.Volume", 60);
-        $this->RegisterVariableInteger("WaterHardness", "Wasserhärte", "SYR.Hardness", 65);
-        
-        // --- 4. Leckage-Überwachung & Profileinstellungen ---
-        $this->RegisterVariableInteger("MicroLeakTestStatus", "Mikroleckage Teststatus", "SYR.MicroLeakStatus", 70);
-        $this->RegisterVariableBoolean("LearningPhaseActive", "Selbstlernphase aktiv", "~Switch", 72);
+        $this->RegisterVariableBoolean("SleepMode", "Schlafmodus aktiv", "~Switch", 33);
+        $this->RegisterVariableInteger("DisplayOrientation", "Display Ausrichtung", "SYR.DisplayOrientation", 34);
+        $this->EnableAction("DisplayOrientation");
+
+        // --- 3. Gerätestatus & Diagnose ---
+        $this->RegisterVariableFloat("BatteryVoltage", "Batteriespannung", "SYR.Voltage", 50);
+        $this->RegisterVariableFloat("MainsVoltage", "Netzspannung", "SYR.Voltage", 51);
+        $this->RegisterVariableInteger("AlarmState", "Alarm Code", "SYR.Alarm", 52);
+        $this->RegisterVariableString("AlarmMessage", "Aktuelle Meldung (Klartext)", "", 53);
+        $this->RegisterVariableBoolean("BuzzerActive", "Summer (Buzzer) aktiv", "~Switch", 54);
+        $this->RegisterVariableInteger("MicroLeakTestStatus", "Mikroleckage Teststatus", "SYR.MicroLeakStatus", 55);
+        $this->RegisterVariableBoolean("LearningPhaseActive", "Selbstlernphase aktiv", "~Switch", 56);
         $this->EnableAction("LearningPhaseActive");
-        $this->RegisterVariableInteger("LearningPhaseDays", "Selbstlernphase Dauer", "SYR.Days", 73);
+        $this->RegisterVariableInteger("LearningPhaseDays", "Selbstlernphase Dauer", "SYR.Days", 57);
         $this->EnableAction("LearningPhaseDays");
-        
+
+        // --- 4. System & Netzwerkinformationen ---
+        $this->RegisterVariableString("SerialNumber", "Seriennummer", "", 70);
+        $this->RegisterVariableString("Firmware", "Firmware Version", "", 71);
+        $this->RegisterVariableString("MacAddress", "MAC-Adresse", "", 72);
+        $this->RegisterVariableString("IpAddress", "IP-Adresse", "", 73);
+        $this->RegisterVariableString("Gateway", "Gateway IP", "", 74);
+        $this->RegisterVariableString("SSID", "WLAN Name", "", 75);
+        $this->RegisterVariableInteger("RSSI", "WLAN Signalstärke", "SYR.RSSI", 76);
+        $this->RegisterVariableString("ConnectionStatus", "Verbindungsstatus", "", 77);
+
+        // --- 5. Profileinstellungen (Ganz unten) ---
         // Profil 1 (Anwesend)
-        $this->RegisterVariableString("P1_Name", "Profil 1: Name", "", 74);
-        $this->RegisterVariableFloat("P1_MaxVolume", "Profil 1: Max. Volumen", "SYR.Volume", 75);
+        $this->RegisterVariableString("P1_Name", "Profil 1: Name", "", 90);
+        $this->RegisterVariableFloat("P1_MaxVolume", "Profil 1: Max. Volumen", "SYR.Volume", 91);
         $this->EnableAction("P1_MaxVolume");
-        $this->RegisterVariableInteger("P1_MaxTime", "Profil 1: Max. Zeit", "SYR.Minutes", 76);
+        $this->RegisterVariableInteger("P1_MaxTime", "Profil 1: Max. Zeit", "SYR.Minutes", 92);
         $this->EnableAction("P1_MaxTime");
-        $this->RegisterVariableFloat("P1_MaxFlow", "Profil 1: Max. Durchfluss", "SYR.Flow", 77);
+        $this->RegisterVariableFloat("P1_MaxFlow", "Profil 1: Max. Durchfluss", "SYR.Flow", 93);
         $this->EnableAction("P1_MaxFlow");
-        $this->RegisterVariableBoolean("P1_MicroLeak", "Profil 1: Mikroleckage aktiv", "~Switch", 78);
+        $this->RegisterVariableBoolean("P1_MicroLeak", "Profil 1: Mikroleckage aktiv", "~Switch", 94);
         $this->EnableAction("P1_MicroLeak");
-        $this->RegisterVariableBoolean("P1_Buzzer", "Profil 1: Warnton", "~Switch", 79);
+        $this->RegisterVariableBoolean("P1_Buzzer", "Profil 1: Warnton", "~Switch", 95);
         $this->EnableAction("P1_Buzzer");
-        $this->RegisterVariableBoolean("P1_Alarm", "Profil 1: Leckagewarnung", "~Switch", 80);
+        $this->RegisterVariableBoolean("P1_Alarm", "Profil 1: Leckagewarnung", "~Switch", 96);
         $this->EnableAction("P1_Alarm");
 
         // Profil 2 (Abwesend)
-        $this->RegisterVariableString("P2_Name", "Profil 2: Name", "", 84);
-        $this->RegisterVariableFloat("P2_MaxVolume", "Profil 2: Max. Volumen", "SYR.Volume", 85);
+        $this->RegisterVariableString("P2_Name", "Profil 2: Name", "", 100);
+        $this->RegisterVariableFloat("P2_MaxVolume", "Profil 2: Max. Volumen", "SYR.Volume", 101);
         $this->EnableAction("P2_MaxVolume");
-        $this->RegisterVariableInteger("P2_MaxTime", "Profil 2: Max. Zeit", "SYR.Minutes", 86);
+        $this->RegisterVariableInteger("P2_MaxTime", "Profil 2: Max. Zeit", "SYR.Minutes", 102);
         $this->EnableAction("P2_MaxTime");
-        $this->RegisterVariableFloat("P2_MaxFlow", "Profil 2: Max. Durchfluss", "SYR.Flow", 87);
+        $this->RegisterVariableFloat("P2_MaxFlow", "Profil 2: Max. Durchfluss", "SYR.Flow", 103);
         $this->EnableAction("P2_MaxFlow");
-        $this->RegisterVariableBoolean("P2_MicroLeak", "Profil 2: Mikroleckage aktiv", "~Switch", 88);
+        $this->RegisterVariableBoolean("P2_MicroLeak", "Profil 2: Mikroleckage aktiv", "~Switch", 104);
         $this->EnableAction("P2_MicroLeak");
-        $this->RegisterVariableInteger("P2_ReturnTime", "Profil 2: Rückkehrzeit (Std)", "SYR.Minutes", 89);
+        $this->RegisterVariableInteger("P2_ReturnTime", "Profil 2: Rückkehrzeit (Std)", "SYR.Minutes", 105);
         $this->EnableAction("P2_ReturnTime");
-        $this->RegisterVariableBoolean("P2_Buzzer", "Profil 2: Warnton", "~Switch", 90);
+        $this->RegisterVariableBoolean("P2_Buzzer", "Profil 2: Warnton", "~Switch", 106);
         $this->EnableAction("P2_Buzzer");
-        $this->RegisterVariableBoolean("P2_Alarm", "Profil 2: Leckagewarnung", "~Switch", 91);
+        $this->RegisterVariableBoolean("P2_Alarm", "Profil 2: Leckagewarnung", "~Switch", 107);
         $this->EnableAction("P2_Alarm");
-
-        // --- 5. Gerätestatus & Diagnose ---
-        $this->RegisterVariableFloat("BatteryVoltage", "Batteriespannung", "SYR.Voltage", 100);
-        $this->RegisterVariableFloat("MainsVoltage", "Netzspannung", "SYR.Voltage", 102);
-        $this->RegisterVariableInteger("AlarmState", "Alarm Code", "SYR.Alarm", 110);
-        $this->RegisterVariableString("AlarmMessage", "Aktuelle Meldung (Klartext)", "", 115);
-        $this->RegisterVariableBoolean("BuzzerActive", "Summer (Buzzer) aktiv", "~Switch", 120);
     }
     
     public function UpdateData() {
@@ -231,38 +228,6 @@ class SyrSafeTechConnect extends IPSModule {
         
         $data = json_decode($response, true);
         if (is_array($data)) {
-            // System & Netz
-            if (isset($data['getSRN'])) $this->SetValue("SerialNumber", (string)$data['getSRN']);
-            if (isset($data['getVER'])) $this->SetValue("Firmware", (string)$data['getVER']);
-            if (isset($data['getMAC'])) $this->SetValue("MacAddress", (string)$data['getMAC']);
-            if (isset($data['getWIP'])) $this->SetValue("IpAddress", (string)$data['getWIP']);
-            if (isset($data['getWGW'])) $this->SetValue("Gateway", (string)$data['getWGW']);
-            if (isset($data['getWFC'])) $this->SetValue("SSID", (string)$data['getWFC']);
-            if (isset($data['getWFR'])) $this->SetValue("RSSI", -(int)$data['getWFR']);
-            
-            if (isset($data['getWFS'])) {
-                $status = ($data['getWFS'] == 2) ? "Verbunden (Lokal)" : "Getrennt (Code: " . $data['getWFS'] . ")";
-                $this->SetValue("ConnectionStatus", $status);
-            }
-
-            // Ventilzustand (Status) & Fahrbefehl (Aktion) abgleichen
-            $currentValveState = 20;
-            if (isset($data['getVLV'])) {
-                $currentValveState = (int)$data['getVLV'];
-                $this->SetValue("ValveState", $currentValveState);
-                if ($currentValveState === 20) $this->SetValue("ValveAction", true);
-                if ($currentValveState === 10) $this->SetValue("ValveAction", false);
-            } elseif (isset($data['getAB'])) {
-                $isOpen = ($data['getAB'] == "1");
-                $currentValveState = $isOpen ? 20 : 10;
-                $this->SetValue("ValveState", $currentValveState);
-                $this->SetValue("ValveAction", $isOpen);
-            }
-
-            if (isset($data['getPRF'])) $this->SetValue("ActiveProfile", (int)$data['getPRF']);
-            if (isset($data['getSLE'])) $this->SetValue("SleepMode", ((int)$data['getSLE'] === 1));
-            if (isset($data['getDRP'])) $this->SetValue("DisplayOrientation", (int)$data['getDRP']);
-
             // Messwerte
             if (isset($data['getCEL'])) {
                 $this->SetValue("Temperature", (float)$data['getCEL'] / 10);
@@ -286,12 +251,71 @@ class SyrSafeTechConnect extends IPSModule {
                 $volStr = str_replace(["Vol[L]", "L", " "], "", $data['getVOL']);
                 $this->SetValue("TotalVolume", (float)$volStr);
             }
-
             if (isset($data['getDMA'])) $this->SetValue("WaterHardness", (int)$data['getDMA']);
+
+            // Steuerung & Status
+            $currentValveState = 20;
+            if (isset($data['getVLV'])) {
+                $currentValveState = (int)$data['getVLV'];
+                $this->SetValue("ValveState", $currentValveState);
+                if ($currentValveState === 20) $this->SetValue("ValveAction", true);
+                if ($currentValveState === 10) $this->SetValue("ValveAction", false);
+            } elseif (isset($data['getAB'])) {
+                $isOpen = ($data['getAB'] == "1");
+                $currentValveState = $isOpen ? 20 : 10;
+                $this->SetValue("ValveState", $currentValveState);
+                $this->SetValue("ValveAction", $isOpen);
+            }
+
+            if (isset($data['getPRF'])) $this->SetValue("ActiveProfile", (int)$data['getPRF']);
+            if (isset($data['getSLE'])) $this->SetValue("SleepMode", ((int)$data['getSLE'] === 1));
+            if (isset($data['getDRP'])) $this->SetValue("DisplayOrientation", (int)$data['getDRP']);
+
+            // Gerätestatus & Spannung mit 1 Nachkommastelle
+            $battVal = 0.0;
+            if (isset($data['getBAT']) && $data['getBAT'] !== "ERROR: ADM" && $data['getBAT'] !== "-") {
+                $battVal = (float)str_replace(',', '.', (string)$data['getBAT']);
+                $this->SetValue("BatteryVoltage", round($battVal, 1));
+            }
+            if (isset($data['getNET']) && $data['getNET'] !== "-") {
+                $netVal = (float)str_replace(',', '.', (string)$data['getNET']);
+                $this->SetValue("MainsVoltage", round($netVal, 1));
+            }
+
             if (isset($data['getDSV'])) $this->SetValue("MicroLeakTestStatus", (int)$data['getDSV']);
             if (isset($data['getSLP'])) $this->SetValue("LearningPhaseActive", ((int)$data['getSLP'] === 1));
             if (isset($data['getSLT'])) $this->SetValue("LearningPhaseDays", (int)$data['getSLT']);
+
+            // Alarm-Parsing
+            if (isset($data['getALA'])) {
+                $alarmCode = ($data['getALA'] == "FF") ? 0 : (int)$data['getALA'];
+                $this->SetValue("AlarmState", $alarmCode);
+            }
             
+            $currentAlarmMessage = "Keine Fehler im Speicher (OK)";
+            if (isset($data['getALM']) && $data['getALM'] !== "ERROR: ADM") {
+                $currentAlarmMessage = $this->ParseAlarmMessage((string)$data['getALM']);
+                $this->SetValue("AlarmMessage", $currentAlarmMessage);
+            }
+
+            if (isset($data['getBUZ'])) {
+                $this->SetValue("BuzzerActive", ((int)$data['getBUZ'] === 1));
+            }
+
+            // System & Netz
+            if (isset($data['getSRN'])) $this->SetValue("SerialNumber", (string)$data['getSRN']);
+            if (isset($data['getVER'])) $this->SetValue("Firmware", (string)$data['getVER']);
+            if (isset($data['getMAC'])) $this->SetValue("MacAddress", (string)$data['getMAC']);
+            if (isset($data['getWIP'])) $this->SetValue("IpAddress", (string)$data['getWIP']);
+            if (isset($data['getWGW'])) $this->SetValue("Gateway", (string)$data['getWGW']);
+            if (isset($data['getWFC'])) $this->SetValue("SSID", (string)$data['getWFC']);
+            if (isset($data['getWFR'])) $this->SetValue("RSSI", -(int)$data['getWFR']);
+            
+            if (isset($data['getWFS'])) {
+                $status = ($data['getWFS'] == 2) ? "Verbunden (Lokal)" : "Getrennt (Code: " . $data['getWFS'] . ")";
+                $this->SetValue("ConnectionStatus", $status);
+            }
+
             // Profil 1
             if (isset($data['getPN1'])) $this->SetValue("P1_Name", (string)$data['getPN1']);
             if (isset($data['getPV1'])) $this->SetValue("P1_MaxVolume", (float)$data['getPV1']);
@@ -310,33 +334,6 @@ class SyrSafeTechConnect extends IPSModule {
             if (isset($data['getPR2'])) $this->SetValue("P2_ReturnTime", (int)$data['getPR2']);
             if (isset($data['getPB2'])) $this->SetValue("P2_Buzzer", ((int)$data['getPB2'] === 1));
             if (isset($data['getPA2'])) $this->SetValue("P2_Alarm", ((int)$data['getPA2'] === 1));
-            
-            // Spannungswerte sauber mit 1 Nachkommastelle verarbeiten
-            $battVal = 0.0;
-            if (isset($data['getBAT']) && $data['getBAT'] !== "ERROR: ADM" && $data['getBAT'] !== "-") {
-                $battVal = (float)str_replace(',', '.', $data['getBAT']);
-                $this->SetValue("BatteryVoltage", round($battVal, 1));
-            }
-            if (isset($data['getNET']) && $data['getNET'] !== "-") {
-                $netVal = (float)str_replace(',', '.', $data['getNET']);
-                $this->SetValue("MainsVoltage", round($netVal, 1));
-            }
-
-            // Alarm-Parsing
-            if (isset($data['getALA'])) {
-                $alarmCode = ($data['getALA'] == "FF") ? 0 : (int)$data['getALA'];
-                $this->SetValue("AlarmState", $alarmCode);
-            }
-            
-            $currentAlarmMessage = "Keine Fehler im Speicher (OK)";
-            if (isset($data['getALM']) && $data['getALM'] !== "ERROR: ADM") {
-                $currentAlarmMessage = $this->ParseAlarmMessage((string)$data['getALM']);
-                $this->SetValue("AlarmMessage", $currentAlarmMessage);
-            }
-
-            if (isset($data['getBUZ'])) {
-                $this->SetValue("BuzzerActive", ((int)$data['getBUZ'] === 1));
-            }
 
             // --- BENACHRICHTIGUNGS-LOGIK ---
             $this->CheckAndSendNotifications($currentValveState, $currentAlarmMessage, $battVal);
@@ -358,7 +355,6 @@ class SyrSafeTechConnect extends IPSModule {
                     $this->WriteAttributeBoolean("CloseNotified", true);
                 }
             } else {
-                // Sobald Ventil wieder geöffnet ist, Flag zurücksetzen
                 $this->WriteAttributeBoolean("CloseNotified", false);
             }
         }
@@ -436,6 +432,9 @@ class SyrSafeTechConnect extends IPSModule {
         $p2Buzzer = $this->GetValue("P2_Buzzer");
         $p2Alarm = $this->GetValue("P2_Alarm");
 
+        $dispOrientation = $this->GetValue("DisplayOrientation");
+        if ($dispOrientation < 1) $dispOrientation = 1;
+
         $volOptions = $this->GetVolumeOptions();
         $timeOptions = $this->GetTimeOptions();
         $flowOptions = $this->GetFlowOptions();
@@ -453,7 +452,7 @@ class SyrSafeTechConnect extends IPSModule {
             ],
             [
                 "type" => "ExpansionPanel",
-                "caption" => "Absperrung & Profilauswahl",
+                "caption" => "Absperrung, Profil & Displaysteuerung",
                 "items" => [
                     [
                         "type" => "RowLayout",
@@ -489,6 +488,27 @@ class SyrSafeTechConnect extends IPSModule {
                                 "type" => "Button",
                                 "caption" => "Profil aktivieren",
                                 "onClick" => "SYR_SetProfile(\$id, \$TargetProfile);"
+                            ]
+                        ]
+                    ],
+                    [
+                        "type" => "RowLayout",
+                        "items" => [
+                            [
+                                "type" => "Select",
+                                "name" => "EditDisplayOrientation",
+                                "caption" => "Display drehen",
+                                "options" => [
+                                    ["caption" => "Standard", "value" => 1],
+                                    ["caption" => "90° Gedreht", "value" => 2],
+                                    ["caption" => "180° Gedreht", "value" => 3]
+                                ],
+                                "value" => (int)$dispOrientation
+                            ],
+                            [
+                                "type" => "Button",
+                                "caption" => "Display Ausrichtung speichern",
+                                "onClick" => "SYR_SetDisplayOrientation(\$id, \$EditDisplayOrientation);"
                             ]
                         ]
                     ]
@@ -838,6 +858,10 @@ class SyrSafeTechConnect extends IPSModule {
         $this->SendAdminAndCommand("/safe-tec/set/prf/" . $profileId);
     }
 
+    public function SetDisplayOrientation(int $orientation) {
+        $this->SendAdminAndCommand("/safe-tec/set/drp/" . $orientation);
+    }
+
     public function SetLearningPhase(bool $active, int $days) {
         $actVal = $active ? 1 : 0;
         $this->SendAdminAndCommand("/safe-tec/set/slt/" . $days);
@@ -882,6 +906,9 @@ class SyrSafeTechConnect extends IPSModule {
                 break;
             case "ActiveProfile":
                 $this->SetProfile((int)$Value);
+                break;
+            case "DisplayOrientation":
+                $this->SetDisplayOrientation((int)$Value);
                 break;
             case "LearningPhaseActive":
                 $days = $this->GetValue("LearningPhaseDays");
