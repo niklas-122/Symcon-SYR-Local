@@ -27,13 +27,20 @@ class SyrSafeTechConnect extends IPSModule {
     }
 
     private function RegisterProfiles() {
-        // Integer-Profil für Ventilzustand laut Community-Vorgabe
+        // Integer-Profil für echten Ventilzustand (Status)
         if (!IPS_VariableProfileExists("SYR.Valve.Int")) {
             IPS_CreateVariableProfile("SYR.Valve.Int", 1);
             IPS_SetVariableProfileAssociation("SYR.Valve.Int", 10, "geschlossen", "Lock", 0xFF0000);
             IPS_SetVariableProfileAssociation("SYR.Valve.Int", 11, "schliesst", "Clock", 0xFFA500);
             IPS_SetVariableProfileAssociation("SYR.Valve.Int", 20, "geöffnet", "Drops", 0x00FF00);
             IPS_SetVariableProfileAssociation("SYR.Valve.Int", 21, "öffnet", "Clock", 0x00FF00);
+        }
+
+        // Bool-Profil für Ventil-Fahrbefehl (Aktion)
+        if (!IPS_VariableProfileExists("SYR.Valve.Bool")) {
+            IPS_CreateVariableProfile("SYR.Valve.Bool", 0);
+            IPS_SetVariableProfileAssociation("SYR.Valve.Bool", true, "Öffnen", "Drops", 0x00FF00);
+            IPS_SetVariableProfileAssociation("SYR.Valve.Bool", false, "Schließen", "Lock", 0xFF0000);
         }
         
         if (!IPS_VariableProfileExists("SYR.Alarm")) {
@@ -57,7 +64,6 @@ class SyrSafeTechConnect extends IPSModule {
             IPS_SetVariableProfileIcon("SYR.Flow", "Drops");
         }
 
-        // Volumen in Liter -> " l" statt " Liter"
         if (!IPS_VariableProfileExists("SYR.Volume")) {
             IPS_CreateVariableProfile("SYR.Volume", 2);
             IPS_SetVariableProfileText("SYR.Volume", "", " l");
@@ -76,7 +82,6 @@ class SyrSafeTechConnect extends IPSModule {
             IPS_SetVariableProfileIcon("SYR.Days", "Calendar");
         }
 
-        // Spannung mit 1 Nachkommastelle
         if (!IPS_VariableProfileExists("SYR.Voltage")) {
             IPS_CreateVariableProfile("SYR.Voltage", 2);
             IPS_SetVariableProfileText("SYR.Voltage", "", " V");
@@ -84,7 +89,6 @@ class SyrSafeTechConnect extends IPSModule {
             IPS_SetVariableProfileIcon("SYR.Voltage", "Electricity");
         }
 
-        // Druck in mbar ohne Nachkommastelle
         if (!IPS_VariableProfileExists("SYR.Pressure.mBar")) {
             IPS_CreateVariableProfile("SYR.Pressure.mBar", 1);
             IPS_SetVariableProfileText("SYR.Pressure.mBar", "", " mbar");
@@ -133,8 +137,13 @@ class SyrSafeTechConnect extends IPSModule {
         $this->RegisterVariableString("ConnectionStatus", "Verbindungsstatus", "", 17);
         
         // --- 2. Steuerung & Profile ---
-        $this->RegisterVariableInteger("ValveState", "Ventilzustand", "SYR.Valve.Int", 20);
-        $this->EnableAction("ValveState"); 
+        // Fahrbefehl (Aktion)
+        $this->RegisterVariableBoolean("ValveAction", "Ventilschalter (Fahrbefehl)", "SYR.Valve.Bool", 19);
+        $this->EnableAction("ValveAction"); 
+
+        // Zustand (Status)
+        $this->RegisterVariableInteger("ValveState", "Ventilzustand (Status)", "SYR.Valve.Int", 20);
+
         $this->RegisterVariableInteger("ActiveProfile", "Aktives Profil", "SYR.Profile", 21);
         $this->EnableAction("ActiveProfile");
         $this->RegisterVariableBoolean("SleepMode", "Schlafmodus aktiv", "~Switch", 22);
@@ -226,11 +235,16 @@ class SyrSafeTechConnect extends IPSModule {
                 $this->SetValue("ConnectionStatus", $status);
             }
 
-            // Steuerung & Ventilzustand
+            // Ventilzustand (Status) & Fahrbefehl (Aktion) abgleichen
             if (isset($data['getVLV'])) {
-                $this->SetValue("ValveState", (int)$data['getVLV']);
+                $vVal = (int)$data['getVLV'];
+                $this->SetValue("ValveState", $vVal);
+                if ($vVal === 20) $this->SetValue("ValveAction", true);
+                if ($vVal === 10) $this->SetValue("ValveAction", false);
             } elseif (isset($data['getAB'])) {
-                $this->SetValue("ValveState", ($data['getAB'] == "1") ? 20 : 10);
+                $isOpen = ($data['getAB'] == "1");
+                $this->SetValue("ValveState", $isOpen ? 20 : 10);
+                $this->SetValue("ValveAction", $isOpen);
             }
 
             if (isset($data['getPRF'])) $this->SetValue("ActiveProfile", (int)$data['getPRF']);
@@ -243,7 +257,6 @@ class SyrSafeTechConnect extends IPSModule {
             }
             if (isset($data['getBAR']) && $data['getBAR'] !== "-") {
                 $druck = (float)str_replace([" mbar", " bar"], "", $data['getBAR']);
-                // Wenn im JSON "bar" geliefert wird, in mbar umrechnen
                 if (strpos($data['getBAR'], "mbar") === false && $druck < 50) {
                     $druck = $druck * 1000;
                 }
@@ -311,10 +324,52 @@ class SyrSafeTechConnect extends IPSModule {
         }
     }
 
+    // --- HELFER FÜR DROPDOWN-STUFEN (Volumen, Zeit, Durchfluss) ---
+
+    private function GetVolumeOptions() {
+        $options = [["caption" => "Aus", "value" => 0]];
+        // 10 bis 100 in 10er Schritten
+        for ($v = 10; $v <= 100; $v += 10) {
+            $options[] = ["caption" => "{$v} Liter", "value" => $v];
+        }
+        // 100 bis 1000 in 50er Schritten
+        for ($v = 150; $v <= 1000; $v += 50) {
+            $options[] = ["caption" => "{$v} Liter", "value" => $v];
+        }
+        // 1000 bis 9000 in 100er Schritten
+        for ($v = 1100; $v <= 9000; $v += 100) {
+            $options[] = ["caption" => "{$v} Liter", "value" => $v];
+        }
+        return $options;
+    }
+
+    private function GetTimeOptions() {
+        $options = [["caption" => "Aus", "value" => 0]];
+        // 0.5 bis 25 Stunden (in Minuten: 30 bis 1500)
+        for ($m = 30; $m <= 1500; $m += 30) {
+            $hours = $m / 60;
+            $options[] = ["caption" => "{$hours} Std ({$m} min)", "value" => $m];
+        }
+        return $options;
+    }
+
+    private function GetFlowOptions() {
+        $options = [
+            ["caption" => "Aus", "value" => 0],
+            ["caption" => "3500 l/h", "value" => 3500],
+            ["caption" => "3600 l/h", "value" => 3600]
+        ];
+        // 3700 bis 5000 in 100er Schritten
+        for ($f = 3700; $f <= 5000; $f += 100) {
+            $options[] = ["caption" => "{$f} l/h", "value" => $f];
+        }
+        return $options;
+    }
+
     public function GetConfigurationForm() {
         $form = json_decode(file_get_contents(__DIR__ . "/form.json"), true);
 
-        // Werte auslesen
+        // Ist-Werte auslesen
         $slpActive = $this->GetValue("LearningPhaseActive");
         $slpDays = $this->GetValue("LearningPhaseDays");
         if ($slpDays < 7) $slpDays = 7;
@@ -333,6 +388,11 @@ class SyrSafeTechConnect extends IPSModule {
         $p2Return = $this->GetValue("P2_ReturnTime");
         $p2Buzzer = $this->GetValue("P2_Buzzer");
         $p2Alarm = $this->GetValue("P2_Alarm");
+
+        // Stufen-Optionen laden
+        $volOptions = $this->GetVolumeOptions();
+        $timeOptions = $this->GetTimeOptions();
+        $flowOptions = $this->GetFlowOptions();
 
         $form['actions'] = [
             [
@@ -355,12 +415,12 @@ class SyrSafeTechConnect extends IPSModule {
                             [
                                 "type" => "Button",
                                 "caption" => "Ventil öffnen",
-                                "onClick" => "SYR_SetValveState(\$id, 20);"
+                                "onClick" => "SYR_SetValveAction(\$id, true);"
                             ],
                             [
                                 "type" => "Button",
                                 "caption" => "Ventil schließen",
-                                "onClick" => "SYR_SetValveState(\$id, 10);"
+                                "onClick" => "SYR_SetValveAction(\$id, false);"
                             ]
                         ]
                     ],
@@ -421,22 +481,21 @@ class SyrSafeTechConnect extends IPSModule {
             ],
             [
                 "type" => "ExpansionPanel",
-                "caption" => "Profil 1 (Anwesend) - Aktuelle Werte anpassen",
+                "caption" => "Profil 1 (Anwesend) - Einstellungen",
                 "items" => [
                     [
                         "type" => "RowLayout",
                         "items" => [
                             [
-                                "type" => "NumberSpinner",
+                                "type" => "Select",
                                 "name" => "EditVolumeP1",
-                                "caption" => "Volumenleckage (in Litern)",
-                                "minimum" => 1,
-                                "maximum" => 5000,
+                                "caption" => "Volumenleckage",
+                                "options" => $volOptions,
                                 "value" => (int)$p1Vol
                             ],
                             [
                                 "type" => "Button",
-                                "caption" => "Profil 1 Volumen setzen",
+                                "caption" => "Volumen setzen",
                                 "onClick" => "SYR_SetProfileVolume(\$id, 1, \$EditVolumeP1);"
                             ]
                         ]
@@ -445,16 +504,15 @@ class SyrSafeTechConnect extends IPSModule {
                         "type" => "RowLayout",
                         "items" => [
                             [
-                                "type" => "NumberSpinner",
+                                "type" => "Select",
                                 "name" => "EditTimeP1",
-                                "caption" => "Zeitleckage (in Minuten)",
-                                "minimum" => 1,
-                                "maximum" => 1440,
+                                "caption" => "Zeitleckage",
+                                "options" => $timeOptions,
                                 "value" => (int)$p1Time
                             ],
                             [
                                 "type" => "Button",
-                                "caption" => "Profil 1 Zeit setzen",
+                                "caption" => "Zeit setzen",
                                 "onClick" => "SYR_SetProfileTime(\$id, 1, \$EditTimeP1);"
                             ]
                         ]
@@ -463,16 +521,15 @@ class SyrSafeTechConnect extends IPSModule {
                         "type" => "RowLayout",
                         "items" => [
                             [
-                                "type" => "NumberSpinner",
+                                "type" => "Select",
                                 "name" => "EditFlowP1",
-                                "caption" => "Durchflussleckage (in l/h)",
-                                "minimum" => 100,
-                                "maximum" => 10000,
+                                "caption" => "Durchflussleckage",
+                                "options" => $flowOptions,
                                 "value" => (int)$p1Flow
                             ],
                             [
                                 "type" => "Button",
-                                "caption" => "Profil 1 Durchfluss setzen",
+                                "caption" => "Durchfluss setzen",
                                 "onClick" => "SYR_SetProfileFlow(\$id, 1, \$EditFlowP1);"
                             ]
                         ]
@@ -529,22 +586,21 @@ class SyrSafeTechConnect extends IPSModule {
             ],
             [
                 "type" => "ExpansionPanel",
-                "caption" => "Profil 2 (Abwesend) - Aktuelle Werte anpassen",
+                "caption" => "Profil 2 (Abwesend) - Einstellungen",
                 "items" => [
                     [
                         "type" => "RowLayout",
                         "items" => [
                             [
-                                "type" => "NumberSpinner",
+                                "type" => "Select",
                                 "name" => "EditVolumeP2",
-                                "caption" => "Volumenleckage (in Litern)",
-                                "minimum" => 1,
-                                "maximum" => 5000,
+                                "caption" => "Volumenleckage",
+                                "options" => $volOptions,
                                 "value" => (int)$p2Vol
                             ],
                             [
                                 "type" => "Button",
-                                "caption" => "Profil 2 Volumen setzen",
+                                "caption" => "Volumen setzen",
                                 "onClick" => "SYR_SetProfileVolume(\$id, 2, \$EditVolumeP2);"
                             ]
                         ]
@@ -553,16 +609,15 @@ class SyrSafeTechConnect extends IPSModule {
                         "type" => "RowLayout",
                         "items" => [
                             [
-                                "type" => "NumberSpinner",
+                                "type" => "Select",
                                 "name" => "EditTimeP2",
-                                "caption" => "Zeitleckage (in Minuten)",
-                                "minimum" => 1,
-                                "maximum" => 1440,
+                                "caption" => "Zeitleckage",
+                                "options" => $timeOptions,
                                 "value" => (int)$p2Time
                             ],
                             [
                                 "type" => "Button",
-                                "caption" => "Profil 2 Zeit setzen",
+                                "caption" => "Zeit setzen",
                                 "onClick" => "SYR_SetProfileTime(\$id, 2, \$EditTimeP2);"
                             ]
                         ]
@@ -571,16 +626,15 @@ class SyrSafeTechConnect extends IPSModule {
                         "type" => "RowLayout",
                         "items" => [
                             [
-                                "type" => "NumberSpinner",
+                                "type" => "Select",
                                 "name" => "EditFlowP2",
-                                "caption" => "Durchflussleckage (in l/h)",
-                                "minimum" => 100,
-                                "maximum" => 10000,
+                                "caption" => "Durchflussleckage",
+                                "options" => $flowOptions,
                                 "value" => (int)$p2Flow
                             ],
                             [
                                 "type" => "Button",
-                                "caption" => "Profil 2 Durchfluss setzen",
+                                "caption" => "Durchfluss setzen",
                                 "onClick" => "SYR_SetProfileFlow(\$id, 2, \$EditFlowP2);"
                             ]
                         ]
@@ -714,7 +768,7 @@ class SyrSafeTechConnect extends IPSModule {
         $this->SendDebug("SendCmd", "Endpoint {$endpoint} => Antwort: " . $res, 0);
         usleep(300000);
 
-        // 3. Admin Mode deaktivieren (gemäß Community-Wunsch)
+        // 3. Admin Mode deaktivieren
         $this->FetchData("/safe-tec/set/ADM/(0)f");
 
         usleep(400000);
@@ -724,9 +778,8 @@ class SyrSafeTechConnect extends IPSModule {
 
     // --- PUBLIC SETTER & ACTION HANDLER ---
 
-    public function SetValveState(int $state) {
-        // Unterstützung für 20/21 (Öffnen) und 10/11 (Schließen) sowie bool (true/false)
-        $targetVal = ($state === 20 || $state === 21 || $state === true) ? 1 : 2;
+    public function SetValveAction(bool $open) {
+        $targetVal = $open ? 1 : 2;
         $endpoint = "/safe-tec/set/ab/" . $targetVal;
         
         $response = $this->SendAdminAndCommand($endpoint);
@@ -780,8 +833,8 @@ class SyrSafeTechConnect extends IPSModule {
 
     public function RequestAction($Ident, $Value) {
         switch ($Ident) {
-            case "ValveState":
-                $this->SetValveState((int)$Value);
+            case "ValveAction":
+                $this->SetValveAction((bool)$Value);
                 break;
             case "ActiveProfile":
                 $this->SetProfile((int)$Value);
