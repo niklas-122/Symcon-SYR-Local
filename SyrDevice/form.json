@@ -24,6 +24,28 @@
           "maximum": 86400
         }
       ]
+    },
+    {
+      "type": "ExpansionPanel",
+      "caption": "Benachrichtigungen (WebFront)",
+      "items": [
+        {
+          "type": "SelectInstance",
+          "name": "WebFrontID",
+          "caption": "WebFront Instanz für Benachrichtigungen",
+          "validModules": ["{05508D4F-47B8-43B8-B007-680485A80A1F}"]
+        },
+        {
+          "type": "CheckBox",
+          "name": "EnableCloseNotification",
+          "caption": "Benachrichtigung bei Ventilschließung / Leckage senden"
+        },
+        {
+          "type": "CheckBox",
+          "name": "EnableBatteryNotification",
+          "caption": "Benachrichtigung bei schwacher 9V Batterie (Bat Low) senden"
+        }
+      ]
     }
   ],
   "actions": []
