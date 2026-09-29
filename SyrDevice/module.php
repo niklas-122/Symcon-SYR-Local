@@ -102,17 +102,19 @@ class SyrSafeTechConnect extends IPSModule {
             IPS_SetVariableProfileIcon("SYR.Pressure.mBar", "Gauge");
         }
 
+        // Korrigiert auf Typ 2 (Float), damit Integer-Variablen mit Nachkommastellen oder Text-Suffix im WebFront fehlerfrei laufen
         if (!IPS_VariableProfileExists("SYR.Conductivity")) {
-            IPS_CreateVariableProfile("SYR.Conductivity", 1);
+            IPS_CreateVariableProfile("SYR.Conductivity", 2);
             IPS_SetVariableProfileText("SYR.Conductivity", "", " µS/cm");
             IPS_SetVariableProfileIcon("SYR.Conductivity", "Electricity");
         }
 
-        // Neues Profil für Wasserhärte in °dH
-        if (!IPS_VariableProfileExists("SYR.Hardness.dH")) {
-            IPS_CreateVariableProfile("SYR.Hardness.dH", 1);
-            IPS_SetVariableProfileText("SYR.Hardness.dH", "", " °dH");
-            IPS_SetVariableProfileIcon("SYR.Hardness.dH", "Water");
+        // Wiederhergestellt: Wasserhärte in Stufen (1-3)
+        if (!IPS_VariableProfileExists("SYR.Hardness")) {
+            IPS_CreateVariableProfile("SYR.Hardness", 1);
+            IPS_SetVariableProfileAssociation("SYR.Hardness", 1, "Stufe 1", "Water", -1);
+            IPS_SetVariableProfileAssociation("SYR.Hardness", 2, "Stufe 2", "Water", -1);
+            IPS_SetVariableProfileAssociation("SYR.Hardness", 3, "Stufe 3", "Water", -1);
         }
         
         if (!IPS_VariableProfileExists("SYR.Profile")) {
@@ -146,7 +148,7 @@ class SyrSafeTechConnect extends IPSModule {
         $v13 = $this->RegisterVariableFloat("CurrentTapVolume", "Aktuelles Zapfvolumen", "SYR.Volume", 13);
         $v14 = $this->RegisterVariableFloat("LastTapVolume", "Letztes Zapfvolumen", "SYR.Volume", 14);
         $v15 = $this->RegisterVariableFloat("TotalVolume", "Gesamtwasserverbrauch", "SYR.Volume", 15);
-        $v16 = $this->RegisterVariableInteger("WaterHardness", "Wasserhärte", "SYR.Hardness.dH", 16); // Zugewiesen an °dH-Profil
+        $v16 = $this->RegisterVariableInteger("WaterHardness", "Wasserhärte", "SYR.Hardness", 16); // Zurück auf Stufen-Profil
         $v17 = $this->RegisterVariableInteger("Conductivity", "Leitfähigkeit", "SYR.Conductivity", 17);
 
         IPS_SetPosition($v10, 10);
