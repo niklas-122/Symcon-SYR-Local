@@ -9,6 +9,15 @@ class SyrSafeTechConnect extends IPSModule {
         $this->RegisterPropertyInteger("Port", 5333);
         $this->RegisterPropertyInteger("UpdateInterval", 60);
         
+        // Benachrichtigungseigenschaften
+        $this->RegisterPropertyInteger("WebFrontID", 0);
+        $this->RegisterPropertyBoolean("EnableCloseNotification", true);
+        $this->RegisterPropertyBoolean("EnableBatteryNotification", true);
+        
+        // Interne Attribute als Benachrichtigungs-Sperre (einmalige Auslösung)
+        $this->RegisterAttributeBoolean("CloseNotified", false);
+        $this->RegisterAttributeBoolean("BatteryNotified", false);
+        
         $this->RegisterTimer("UpdateData", 0, 'SYR_UpdateData($_IPS[\'TARGET\']);');
         
         $this->RegisterProfiles();
@@ -27,7 +36,7 @@ class SyrSafeTechConnect extends IPSModule {
     }
 
     private function RegisterProfiles() {
-        // Integer-Profil für echten Ventilzustand (Status)
+        // Integer-Profil für echten Ventilzustand (Status - rein informativ)
         if (!IPS_VariableProfileExists("SYR.Valve.Int")) {
             IPS_CreateVariableProfile("SYR.Valve.Int", 1);
             IPS_SetVariableProfileAssociation("SYR.Valve.Int", 10, "geschlossen", "Lock", 0xFF0000);
@@ -82,6 +91,7 @@ class SyrSafeTechConnect extends IPSModule {
             IPS_SetVariableProfileIcon("SYR.Days", "Calendar");
         }
 
+        // Spannung exakt mit 1 Nachkommastelle definieren
         if (!IPS_VariableProfileExists("SYR.Voltage")) {
             IPS_CreateVariableProfile("SYR.Voltage", 2);
             IPS_SetVariableProfileText("SYR.Voltage", "", " V");
@@ -137,11 +147,11 @@ class SyrSafeTechConnect extends IPSModule {
         $this->RegisterVariableString("ConnectionStatus", "Verbindungsstatus", "", 17);
         
         // --- 2. Steuerung & Profile ---
-        // Fahrbefehl (Aktion)
+        // Fahrbefehl (Aktion, schaltbar)
         $this->RegisterVariableBoolean("ValveAction", "Ventilschalter (Fahrbefehl)", "SYR.Valve.Bool", 19);
         $this->EnableAction("ValveAction"); 
 
-        // Zustand (Status)
+        // Zustand (Status - rein informativ, OHNE EnableAction!)
         $this->RegisterVariableInteger("ValveState", "Ventilzustand (Status)", "SYR.Valve.Int", 20);
 
         $this->RegisterVariableInteger("ActiveProfile", "Aktives Profil", "SYR.Profile", 21);
@@ -236,14 +246,16 @@ class SyrSafeTechConnect extends IPSModule {
             }
 
             // Ventilzustand (Status) & Fahrbefehl (Aktion) abgleichen
+            $currentValveState = 20;
             if (isset($data['getVLV'])) {
-                $vVal = (int)$data['getVLV'];
-                $this->SetValue("ValveState", $vVal);
-                if ($vVal === 20) $this->SetValue("ValveAction", true);
-                if ($vVal === 10) $this->SetValue("ValveAction", false);
+                $currentValveState = (int)$data['getVLV'];
+                $this->SetValue("ValveState", $currentValveState);
+                if ($currentValveState === 20) $this->SetValue("ValveAction", true);
+                if ($currentValveState === 10) $this->SetValue("ValveAction", false);
             } elseif (isset($data['getAB'])) {
                 $isOpen = ($data['getAB'] == "1");
-                $this->SetValue("ValveState", $isOpen ? 20 : 10);
+                $currentValveState = $isOpen ? 20 : 10;
+                $this->SetValue("ValveState", $currentValveState);
                 $this->SetValue("ValveAction", $isOpen);
             }
 
@@ -299,44 +311,81 @@ class SyrSafeTechConnect extends IPSModule {
             if (isset($data['getPB2'])) $this->SetValue("P2_Buzzer", ((int)$data['getPB2'] === 1));
             if (isset($data['getPA2'])) $this->SetValue("P2_Alarm", ((int)$data['getPA2'] === 1));
             
-            // Spannung & Alarm
+            // Spannungswerte sauber mit 1 Nachkommastelle verarbeiten
+            $battVal = 0.0;
             if (isset($data['getBAT']) && $data['getBAT'] !== "ERROR: ADM" && $data['getBAT'] !== "-") {
-                $batt = (float)str_replace(',', '.', $data['getBAT']);
-                $this->SetValue("BatteryVoltage", round($batt, 1));
+                $battVal = (float)str_replace(',', '.', $data['getBAT']);
+                $this->SetValue("BatteryVoltage", round($battVal, 1));
             }
             if (isset($data['getNET']) && $data['getNET'] !== "-") {
-                $net = (float)str_replace(',', '.', $data['getNET']);
-                $this->SetValue("MainsVoltage", round($net, 1));
+                $netVal = (float)str_replace(',', '.', $data['getNET']);
+                $this->SetValue("MainsVoltage", round($netVal, 1));
             }
+
+            // Alarm-Parsing
             if (isset($data['getALA'])) {
                 $alarmCode = ($data['getALA'] == "FF") ? 0 : (int)$data['getALA'];
                 $this->SetValue("AlarmState", $alarmCode);
             }
             
+            $currentAlarmMessage = "Keine Fehler im Speicher (OK)";
             if (isset($data['getALM']) && $data['getALM'] !== "ERROR: ADM") {
-                $parsedMessage = $this->ParseAlarmMessage((string)$data['getALM']);
-                $this->SetValue("AlarmMessage", $parsedMessage);
+                $currentAlarmMessage = $this->ParseAlarmMessage((string)$data['getALM']);
+                $this->SetValue("AlarmMessage", $currentAlarmMessage);
             }
 
             if (isset($data['getBUZ'])) {
                 $this->SetValue("BuzzerActive", ((int)$data['getBUZ'] === 1));
             }
+
+            // --- BENACHRICHTIGUNGS-LOGIK ---
+            $this->CheckAndSendNotifications($currentValveState, $currentAlarmMessage, $battVal);
         }
     }
 
-    // --- HELFER FÜR DROPDOWN-STUFEN (Volumen, Zeit, Durchfluss) ---
+    private function CheckAndSendNotifications(int $valveState, string $alarmMessage, float $batteryVoltage) {
+        $webFrontID = $this->ReadPropertyInteger("WebFrontID");
+        if ($webFrontID <= 0 || !IPS_InstanceExists($webFrontID)) {
+            return;
+        }
+
+        // 1. Benachrichtigung bei Ventilschließung / Leckage
+        if ($this->ReadPropertyBoolean("EnableCloseNotification")) {
+            if ($valveState === 10) { // Ventil geschlossen
+                if (!$this->ReadAttributeBoolean("CloseNotified")) {
+                    $reason = ($alarmMessage !== "Keine Fehler im Speicher (OK)") ? $alarmMessage : "Ventil wurde geschlossen / Leckageschutz ausgelöst";
+                    WFC_SendNotification($webFrontID, "SYR SafeTech: Absperrung geschlossen!", "Grund: " . $reason, "Warning", 10);
+                    $this->WriteAttributeBoolean("CloseNotified", true);
+                }
+            } else {
+                // Sobald Ventil wieder geöffnet ist, Flag zurücksetzen
+                $this->WriteAttributeBoolean("CloseNotified", false);
+            }
+        }
+
+        // 2. Benachrichtigung bei schwacher 9V Batterie (Bat Low)
+        if ($this->ReadPropertyBoolean("EnableBatteryNotification")) {
+            $isBatLow = ($batteryVoltage > 0.0 && $batteryVoltage < 7.5) || (strpos($alarmMessage, "Batterie schwach") !== false);
+            if ($isBatLow) {
+                if (!$this->ReadAttributeBoolean("BatteryNotified")) {
+                    $batText = ($batteryVoltage > 0) ? sprintf("Spannung: %.1f V", $batteryVoltage) : "Batterie schwach";
+                    WFC_SendNotification($webFrontID, "SYR SafeTech: Batteriewechsel erforderlich!", "Die 9V-Pufferbatterie muss getauscht werden ({$batText}).", "Alert", 10);
+                    $this->WriteAttributeBoolean("BatteryNotified", true);
+                }
+            } else {
+                $this->WriteAttributeBoolean("BatteryNotified", false);
+            }
+        }
+    }
 
     private function GetVolumeOptions() {
         $options = [["caption" => "Aus", "value" => 0]];
-        // 10 bis 100 in 10er Schritten
         for ($v = 10; $v <= 100; $v += 10) {
             $options[] = ["caption" => "{$v} Liter", "value" => $v];
         }
-        // 100 bis 1000 in 50er Schritten
         for ($v = 150; $v <= 1000; $v += 50) {
             $options[] = ["caption" => "{$v} Liter", "value" => $v];
         }
-        // 1000 bis 9000 in 100er Schritten
         for ($v = 1100; $v <= 9000; $v += 100) {
             $options[] = ["caption" => "{$v} Liter", "value" => $v];
         }
@@ -345,7 +394,6 @@ class SyrSafeTechConnect extends IPSModule {
 
     private function GetTimeOptions() {
         $options = [["caption" => "Aus", "value" => 0]];
-        // 0.5 bis 25 Stunden (in Minuten: 30 bis 1500)
         for ($m = 30; $m <= 1500; $m += 30) {
             $hours = $m / 60;
             $options[] = ["caption" => "{$hours} Std ({$m} min)", "value" => $m];
@@ -359,7 +407,6 @@ class SyrSafeTechConnect extends IPSModule {
             ["caption" => "3500 l/h", "value" => 3500],
             ["caption" => "3600 l/h", "value" => 3600]
         ];
-        // 3700 bis 5000 in 100er Schritten
         for ($f = 3700; $f <= 5000; $f += 100) {
             $options[] = ["caption" => "{$f} l/h", "value" => $f];
         }
@@ -389,7 +436,6 @@ class SyrSafeTechConnect extends IPSModule {
         $p2Buzzer = $this->GetValue("P2_Buzzer");
         $p2Alarm = $this->GetValue("P2_Alarm");
 
-        // Stufen-Optionen laden
         $volOptions = $this->GetVolumeOptions();
         $timeOptions = $this->GetTimeOptions();
         $flowOptions = $this->GetFlowOptions();
@@ -755,8 +801,6 @@ class SyrSafeTechConnect extends IPSModule {
 
         return implode(', ', $resultParts);
     }
-
-    // --- HELFER: Admin Mode aktivieren & deaktivieren ---
 
     private function SendAdminAndCommand(string $endpoint) {
         // 1. Admin Mode aktivieren
