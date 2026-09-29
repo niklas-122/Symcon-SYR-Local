@@ -89,7 +89,6 @@ class SyrSafeTechConnect extends IPSModule {
             IPS_SetVariableProfileIcon("SYR.Days", "Calendar");
         }
 
-        // Spannung als Float-Profil mit 1 Nachkommastelle
         if (!IPS_VariableProfileExists("SYR.Voltage")) {
             IPS_CreateVariableProfile("SYR.Voltage", 2);
             IPS_SetVariableProfileText("SYR.Voltage", "", " V");
@@ -101,6 +100,12 @@ class SyrSafeTechConnect extends IPSModule {
             IPS_CreateVariableProfile("SYR.Pressure.mBar", 1);
             IPS_SetVariableProfileText("SYR.Pressure.mBar", "", " mbar");
             IPS_SetVariableProfileIcon("SYR.Pressure.mBar", "Gauge");
+        }
+
+        if (!IPS_VariableProfileExists("SYR.Conductivity")) {
+            IPS_CreateVariableProfile("SYR.Conductivity", 1);
+            IPS_SetVariableProfileText("SYR.Conductivity", "", " µS/cm");
+            IPS_SetVariableProfileIcon("SYR.Conductivity", "Electricity");
         }
         
         if (!IPS_VariableProfileExists("SYR.Profile")) {
@@ -128,9 +133,8 @@ class SyrSafeTechConnect extends IPSModule {
 
         if (!IPS_VariableProfileExists("SYR.DisplayOrientation")) {
             IPS_CreateVariableProfile("SYR.DisplayOrientation", 1);
-            IPS_SetVariableProfileAssociation("SYR.DisplayOrientation", 1, "Standard", "Information", -1);
-            IPS_SetVariableProfileAssociation("SYR.DisplayOrientation", 2, "90° Gedreht", "Information", -1);
-            IPS_SetVariableProfileAssociation("SYR.DisplayOrientation", 3, "180° Gedreht", "Information", -1);
+            IPS_SetVariableProfileAssociation("SYR.DisplayOrientation", 1, "Standard (0°)", "Information", -1);
+            IPS_SetVariableProfileAssociation("SYR.DisplayOrientation", 2, "180° Gedreht", "Information", -1);
         }
     }
 
@@ -143,6 +147,7 @@ class SyrSafeTechConnect extends IPSModule {
         $v14 = $this->RegisterVariableFloat("LastTapVolume", "Letztes Zapfvolumen", "SYR.Volume", 14);
         $v15 = $this->RegisterVariableFloat("TotalVolume", "Gesamtwasserverbrauch", "SYR.Volume", 15);
         $v16 = $this->RegisterVariableInteger("WaterHardness", "Wasserhärte", "SYR.Hardness", 16);
+        $v17 = $this->RegisterVariableInteger("Conductivity", "Elektr. Leitfähigkeit", "SYR.Conductivity", 17);
 
         IPS_SetPosition($v10, 10);
         IPS_SetPosition($v11, 11);
@@ -151,11 +156,15 @@ class SyrSafeTechConnect extends IPSModule {
         IPS_SetPosition($v14, 14);
         IPS_SetPosition($v15, 15);
         IPS_SetPosition($v16, 16);
+        IPS_SetPosition($v17, 17);
 
         // --- 2. Steuerung & Hauptzustand (Pos 30 - 49) ---
         $v30 = $this->RegisterVariableBoolean("ValveAction", "Ventilschalter (Fahrbefehl)", "SYR.Valve.Bool", 30);
         $this->EnableAction("ValveAction"); 
+        
+        // WICHTIG: ValveState ist nun rein informativ und besitzt KEIN EnableAction() mehr!
         $v31 = $this->RegisterVariableInteger("ValveState", "Ventilzustand (Status)", "SYR.Valve.Int", 31);
+        
         $v32 = $this->RegisterVariableInteger("ActiveProfile", "Aktives Profil", "SYR.Profile", 32);
         $this->EnableAction("ActiveProfile");
         $v33 = $this->RegisterVariableBoolean("SleepMode", "Schlafmodus aktiv", "~Switch", 33);
@@ -299,6 +308,13 @@ class SyrSafeTechConnect extends IPSModule {
                 $this->SetValue("TotalVolume", (float)$volStr);
             }
             if (isset($data['getDMA'])) $this->SetValue("WaterHardness", (int)$data['getDMA']);
+            
+            // Leitfähigkeit
+            if (isset($data['getCND'])) {
+                $this->SetValue("Conductivity", (int)$data['getCND']);
+            } elseif (isset($data['getCON'])) {
+                $this->SetValue("Conductivity", (int)$data['getCON']);
+            }
 
             // Steuerung & Status
             $currentValveState = 20;
@@ -548,9 +564,8 @@ class SyrSafeTechConnect extends IPSModule {
                                 "name" => "EditDisplayOrientation",
                                 "caption" => "Display drehen",
                                 "options" => [
-                                    ["caption" => "Standard", "value" => 1],
-                                    ["caption" => "90° Gedreht", "value" => 2],
-                                    ["caption" => "180° Gedreht", "value" => 3]
+                                    ["caption" => "Standard (0°)", "value" => 1],
+                                    ["caption" => "180° Gedreht", "value" => 2]
                                 ],
                                 "value" => (int)$dispOrientation
                             ],
@@ -908,10 +923,8 @@ class SyrSafeTechConnect extends IPSModule {
     }
 
     public function SetDisplayOrientation(int $orientation) {
-        // Versuche Kleinbuchstaben-Befehl
+        // SafeTec erwartet für drp numerische Werte im Admin-Kontext oder mit Formatklammern
         $response = $this->SendAdminAndCommand("/safe-tec/set/drp/" . $orientation);
-        
-        // Falls vom Gerät abgelehnt/ignoriert, probiere alternative Schreibweise mit Suffix (f)
         if (empty($response) || strpos($response, "ERROR") !== false) {
             $this->SendAdminAndCommand("/safe-tec/set/DRP/(" . $orientation . ")f");
         }
