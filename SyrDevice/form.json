@@ -32,8 +32,7 @@
         {
           "type": "SelectInstance",
           "name": "WebFrontID",
-          "caption": "WebFront Instanz für Benachrichtigungen",
-          "validModules": ["{05508D4F-47B8-43B8-B007-680485A80A1F}"]
+          "caption": "WebFront / Visualisierung Instanz"
         },
         {
           "type": "CheckBox",
