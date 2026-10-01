@@ -83,7 +83,7 @@ class SyrSafeTechConnect extends IPSModule {
         }
 
         if (!IPS_VariableProfileExists("SYR.Minutes")) {
-            IPS_CreateVariableProfile("SYR.Minutes", 2); // Geändert auf Float für genauere Timer-Anzeige
+            IPS_CreateVariableProfile("SYR.Minutes", 2);
             IPS_SetVariableProfileText("SYR.Minutes", "", " min");
             IPS_SetVariableProfileIcon("SYR.Minutes", "Clock");
         }
@@ -137,23 +137,23 @@ class SyrSafeTechConnect extends IPSModule {
             IPS_SetVariableProfileAssociation("SYR.MicroLeakStatus", 3, "Übersprungen", "Info", -1);
         }
 
-        // Display Ausrichtung mit 4 Optionen
+        // 4 Display-Ausrichtungen
         if (!IPS_VariableProfileExists("SYR.DisplayOrientation")) {
             IPS_CreateVariableProfile("SYR.DisplayOrientation", 1);
+            IPS_SetVariableProfileAssociation("SYR.DisplayOrientation", 1, "Standard (0°)", "Information", -1);
+            IPS_SetVariableProfileAssociation("SYR.DisplayOrientation", 2, "90° Gedreht", "Information", -1);
+            IPS_SetVariableProfileAssociation("SYR.DisplayOrientation", 3, "180° Gedreht", "Information", -1);
+            IPS_SetVariableProfileAssociation("SYR.DisplayOrientation", 4, "270° Gedreht", "Information", -1);
         }
-        IPS_SetVariableProfileAssociation("SYR.DisplayOrientation", 1, "Standard (0°)", "Information", -1);
-        IPS_SetVariableProfileAssociation("SYR.DisplayOrientation", 2, "90° Gedreht", "Information", -1);
-        IPS_SetVariableProfileAssociation("SYR.DisplayOrientation", 3, "180° Gedreht", "Information", -1);
-        IPS_SetVariableProfileAssociation("SYR.DisplayOrientation", 4, "270° Gedreht", "Information", -1);
     }
 
     private function MaintainVariables() {
-        // --- 1. Messwerte & Sensoren (Pos 10 - 17) ---
+        // --- 1. Messwerte & Sensoren ---
         $v10 = $this->RegisterVariableInteger("Pressure", "Wasserdruck", "SYR.Pressure.mBar", 10);
         $v11 = $this->RegisterVariableFloat("Temperature", "Wassertemperatur", "~Temperature", 11);
         $v12 = $this->RegisterVariableFloat("Flow", "Aktueller Durchfluss", "SYR.Flow", 12);
         $v13 = $this->RegisterVariableFloat("CurrentTapVolume", "Aktuelles Zapfvolumen", "SYR.Volume", 13);
-        $v14 = $this->RegisterVariableFloat("DailyVolume", "Tagesverbrauch", "SYR.Volume", 14); // Neu hinzugefügt
+        $v14 = $this->RegisterVariableFloat("DailyVolume", "Tagesverbrauch", "SYR.Volume", 14);
         $v15 = $this->RegisterVariableFloat("TotalVolume", "Gesamtwasserverbrauch", "SYR.Volume", 15);
         $v16 = $this->RegisterVariableFloat("WaterHardness", "Wasserhärte (geschätzt)", "SYR.Hardness.Estimated", 16);
         $v17 = $this->RegisterVariableFloat("Conductivity", "Leitfähigkeit", "SYR.Conductivity", 17);
@@ -167,7 +167,7 @@ class SyrSafeTechConnect extends IPSModule {
         IPS_SetPosition($v16, 16);
         IPS_SetPosition($v17, 17);
 
-        // --- 2. Aktive Limits & Ausnutzung (Pos 20 - 25) ---
+        // --- 2. Aktive Limits & Ausnutzung ---
         $l1 = $this->RegisterVariableFloat("FlowleakageLimit", "Durchflussleckage-Begrenzung", "SYR.Flow", 20);
         $l2 = $this->RegisterVariableFloat("FlowleakageUtilization", "Durchflussleckage-Ausnutzung", "SYR.Flow", 21);
         $l3 = $this->RegisterVariableFloat("VolumeleakageLimit", "Volumenleckage-Begrenzung", "SYR.Volume", 22);
@@ -182,7 +182,7 @@ class SyrSafeTechConnect extends IPSModule {
         IPS_SetPosition($l5, 24);
         IPS_SetPosition($l6, 25);
 
-        // --- 3. Steuerung & Hauptzustand (Pos 30 - 39) ---
+        // --- 3. Steuerung & Hauptzustand ---
         $v30 = $this->RegisterVariableBoolean("ValveAction", "Ventilschalter (Fahrbefehl)", "SYR.Valve.Bool", 30);
         $this->EnableAction("ValveAction"); 
         $v31 = $this->RegisterVariableInteger("ValveState", "Ventilzustand (Status)", "SYR.Valve.Int", 31);
@@ -192,15 +192,33 @@ class SyrSafeTechConnect extends IPSModule {
         $v34 = $this->RegisterVariableInteger("DisplayOrientation", "Display Ausrichtung", "SYR.DisplayOrientation", 34);
         $this->EnableAction("DisplayOrientation");
 
-        // ... restliche Gerätestatus-Variablen ab Position 50 bleiben erhalten
+        IPS_SetPosition($v30, 30);
+        IPS_SetPosition($v31, 31);
+        IPS_SetPosition($v32, 32);
+        IPS_SetPosition($v33, 33);
+        IPS_SetPosition($v34, 34);
+
+        // --- 4. Gerätestatus & Diagnose ---
         $this->RegisterVariableFloat("BatteryVoltage", "Batteriespannung", "SYR.Voltage", 50);
         $this->RegisterVariableFloat("MainsVoltage", "Netzspannung", "SYR.Voltage", 51);
         $this->RegisterVariableInteger("AlarmState", "Alarm Code", "SYR.Alarm", 52);
         $this->RegisterVariableString("AlarmMessage", "Aktuelle Meldung (Klartext)", "", 53);
-        
-        // ... System, Netz und Profileinstellungen ab Pos 70 bzw. 90 (wie im vorigen Code)
-        // (Zur besseren Übersichtlichkeit hier im Beispielblock weggelassen, 
-        // müssen im echten Code aber natürlich nicht gelöscht werden).
+        $this->RegisterVariableBoolean("BuzzerActive", "Summer (Buzzer) aktiv", "~Switch", 54);
+        $this->RegisterVariableInteger("MicroLeakTestStatus", "Mikroleckage Teststatus", "SYR.MicroLeakStatus", 55);
+        $this->RegisterVariableBoolean("LearningPhaseActive", "Selbstlernphase aktiv", "~Switch", 56);
+        $this->EnableAction("LearningPhaseActive");
+        $this->RegisterVariableInteger("LearningPhaseDays", "Selbstlernphase Dauer", "SYR.Days", 57);
+        $this->EnableAction("LearningPhaseDays");
+
+        // --- 5. System & Netzwerkinformationen ---
+        $this->RegisterVariableString("SerialNumber", "Seriennummer", "", 70);
+        $this->RegisterVariableString("Firmware", "Firmware Version", "", 71);
+        $this->RegisterVariableString("MacAddress", "MAC-Adresse", "", 72);
+        $this->RegisterVariableString("IpAddress", "IP-Adresse", "", 73);
+        $this->RegisterVariableString("Gateway", "Gateway IP", "", 74);
+        $this->RegisterVariableString("SSID", "WLAN Name", "", 75);
+        $this->RegisterVariableInteger("RSSI", "WLAN Signalstärke", "SYR.RSSI", 76);
+        $this->RegisterVariableString("ConnectionStatus", "Verbindungsstatus", "", 77);
     }
     
     public function UpdateData() {
@@ -217,7 +235,6 @@ class SyrSafeTechConnect extends IPSModule {
         
         $data = json_decode($response, true);
         if (is_array($data)) {
-            // Messwerte (wie bisher)
             $temp = 20.0;
             if (isset($data['getCEL'])) {
                 $temp = (float)$data['getCEL'] / 10;
@@ -238,7 +255,6 @@ class SyrSafeTechConnect extends IPSModule {
                 $this->SetValue("CurrentTapVolume", $currentTapVol);
             }
             
-            // Tagesverbrauch & Gesamtwasserverbrauch Logik
             if (isset($data['getVOL']) && $data['getVOL'] !== "ERROR: ADM" && $data['getVOL'] !== "-") {
                 $totalVolume = (float)str_replace(["Vol[L]", "L", " "], "", $data['getVOL']);
                 $this->SetValue("TotalVolume", $totalVolume);
@@ -246,7 +262,6 @@ class SyrSafeTechConnect extends IPSModule {
                 $today = date("Y-m-d");
                 $lastDay = $this->ReadAttributeString("LastMidnightDate");
                 
-                // Tageswechsel erkennen
                 if ($lastDay !== $today) {
                     $this->WriteAttributeString("LastMidnightDate", $today);
                     $this->WriteAttributeFloat("VolumeAtMidnight", $totalVolume);
@@ -254,19 +269,42 @@ class SyrSafeTechConnect extends IPSModule {
                 
                 $midnightVolume = $this->ReadAttributeFloat("VolumeAtMidnight");
                 if ($midnightVolume == 0 && $totalVolume > 0) {
-                    // Fallback beim ersten Start des Moduls
                     $this->WriteAttributeFloat("VolumeAtMidnight", $totalVolume);
                     $midnightVolume = $totalVolume;
                 }
                 
-                // Tagesverbrauch in Liter setzen
                 $dailyVolume = max(0, $totalVolume - $midnightVolume);
                 $this->SetValue("DailyVolume", $dailyVolume);
             }
             
-            // ... Leitfähigkeit und Härte (wie bisher)
+            $conductivity = 0.0;
+            if (isset($data['getCND'])) {
+                $conductivity = (float)$data['getCND'];
+                $this->SetValue("Conductivity", $conductivity);
+            } elseif (isset($data['getCON'])) {
+                $conductivity = (float)$data['getCON'];
+                $this->SetValue("Conductivity", $conductivity);
+            }
 
-            // Steuerung & Status
+            if ($conductivity > 0) {
+                $ec25 = $conductivity / (1 + 0.02 * ($temp - 25));
+                $estimateddH = $ec25 / 33.0;
+                $this->SetValue("WaterHardness", round($estimateddH, 1));
+            }
+
+            $currentValveState = 20;
+            if (isset($data['getVLV'])) {
+                $currentValveState = (int)$data['getVLV'];
+                $this->SetValue("ValveState", $currentValveState);
+                if ($currentValveState === 20) $this->SetValue("ValveAction", true);
+                if ($currentValveState === 10) $this->SetValue("ValveAction", false);
+            } elseif (isset($data['getAB'])) {
+                $isOpen = ($data['getAB'] == "1");
+                $currentValveState = $isOpen ? 20 : 10;
+                $this->SetValue("ValveState", $currentValveState);
+                $this->SetValue("ValveAction", $isOpen);
+            }
+
             $activeProfile = 1;
             if (isset($data['getPRF'])) {
                 $activeProfile = (int)$data['getPRF'];
@@ -277,7 +315,6 @@ class SyrSafeTechConnect extends IPSModule {
                 $this->SetValue("DisplayOrientation", (int)$data['getDRP']);
             }
 
-            // Auslesen der Profil-Limits je nach aktivem Profil
             $limitFlow = 0; $limitVol = 0; $limitTime = 0;
             if ($activeProfile == 1) {
                 if (isset($data['getPF1'])) $limitFlow = (float)$data['getPF1'];
@@ -289,16 +326,13 @@ class SyrSafeTechConnect extends IPSModule {
                 if (isset($data['getPT2'])) $limitTime = (float)$data['getPT2'];
             }
             
-            // Setzen der Limit-Variablen (Begrenzung)
             $this->SetValue("FlowleakageLimit", $limitFlow);
             $this->SetValue("VolumeleakageLimit", $limitVol);
             $this->SetValue("TimeleakageLimit", $limitTime);
 
-            // Setzen der Utilization-Variablen (Ausnutzung)
             $this->SetValue("FlowleakageUtilization", $currentFlow);
             $this->SetValue("VolumeleakageUtilization", $currentTapVol);
             
-            // Eigene Timer-Logik für Zeitleckage-Ausnutzung (da die API die Zapfzeit meist nicht direkt liefert)
             if ($currentFlow > 0) {
                 $tapStart = $this->ReadAttributeInteger("TapStartTime");
                 if ($tapStart === 0) {
@@ -312,22 +346,59 @@ class SyrSafeTechConnect extends IPSModule {
                 $this->WriteAttributeInteger("TapStartTime", 0);
                 $this->SetValue("TimeleakageUtilization", 0.0);
             }
-
-            // ... (Restlicher Parsing-Code für Batterie, Alarm, Netz etc. analog zum vorigen Code)
         }
     }
 
     public function SetDisplayOrientation(int $orientation) {
-        // Fallback-Mechanismus, da manche SYR Firmwares unterschiedliche Endpoints für das Display nutzen
         $response = $this->SendAdminAndCommand("/safe-tec/set/drp/" . $orientation);
-        
         if (empty($response) || strpos($response, "ERROR") !== false) {
-            // Alternativer Command-Style, der bei hartnäckigen Einstellungen oft erzwingt, dass der Wert angenommen wird
             $this->SendAdminAndCommand("/safe-tec/set/DRP/(" . $orientation . ")f");
         }
-        $this->UpdateData();
     }
 
-    // ... (Weitere Set-Funktionen und RequestAction wie im vorigen Code)
+    private function SendAdminAndCommand(string $endpoint) {
+        $this->FetchData("/safe-tec/set/ADM/(2)f");
+        usleep(300000);
 
+        $res = $this->FetchData($endpoint);
+        $this->SendDebug("SendCmd", "Endpoint {$endpoint} => Antwort: " . $res, 0);
+        usleep(300000);
+
+        $this->FetchData("/safe-tec/set/ADM/(0)f");
+        usleep(400000);
+        $this->UpdateData();
+        return $res;
+    }
+
+    private function FetchData($endpoint) {
+        $ip = $this->ReadPropertyString("IPAddress");
+        $port = $this->ReadPropertyInteger("Port");
+        $url = "http://{$ip}:{$port}{$endpoint}";
+        
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, $url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 3);
+        $result = curl_exec($ch);
+        curl_close($ch);
+        
+        return $result;
+    }
+
+    public function RequestAction($Ident, $Value) {
+        switch ($Ident) {
+            case "ValveAction":
+                $targetVal = ((bool)$Value) ? 1 : 2;
+                $this->SendAdminAndCommand("/safe-tec/set/ab/" . $targetVal);
+                break;
+            case "ActiveProfile":
+                $this->SendAdminAndCommand("/safe-tec/set/prf/" . (int)$Value);
+                break;
+            case "DisplayOrientation":
+                $this->SetDisplayOrientation((int)$Value);
+                break;
+            default:
+                throw new Exception("Invalid Ident: " . $Ident);
+        }
+    }
 }
