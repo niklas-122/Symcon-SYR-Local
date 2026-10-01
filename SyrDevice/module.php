@@ -123,8 +123,9 @@ class SyrSafeTechConnect extends IPSModule {
         
         if (!IPS_VariableProfileExists("SYR.Profile")) {
             IPS_CreateVariableProfile("SYR.Profile", 1);
-            IPS_SetVariableProfileAssociation("SYR.Profile", 1, "Anwesend", "House", -1);
-            IPS_SetVariableProfileAssociation("SYR.Profile", 2, "Abwesend", "Car", -1);
+            IPS_SetVariableProfileAssociation("SYR.Profile", 0, "Profil 0 / Unbekannt", "Suitcase", -1);
+            IPS_SetVariableProfileAssociation("SYR.Profile", 1, "Profil 1: Anwesend", "House", -1);
+            IPS_SetVariableProfileAssociation("SYR.Profile", 2, "Profil 2: Abwesend", "Car", -1);
             IPS_SetVariableProfileAssociation("SYR.Profile", 3, "Profil 3", "Suitcase", -1);
             IPS_SetVariableProfileAssociation("SYR.Profile", 4, "Profil 4", "Suitcase", -1);
         }
@@ -137,7 +138,7 @@ class SyrSafeTechConnect extends IPSModule {
             IPS_SetVariableProfileAssociation("SYR.MicroLeakStatus", 3, "Übersprungen", "Info", -1);
         }
 
-        // 4 Display-Ausrichtungen
+        // 4 Display-Ausrichtungen (Standard, 90°, 180°, 270°)
         if (!IPS_VariableProfileExists("SYR.DisplayOrientation")) {
             IPS_CreateVariableProfile("SYR.DisplayOrientation", 1);
             IPS_SetVariableProfileAssociation("SYR.DisplayOrientation", 1, "Standard (0°)", "Information", -1);
@@ -385,17 +386,520 @@ class SyrSafeTechConnect extends IPSModule {
         return $result;
     }
 
+    private function GetVolumeOptions() {
+        $options = [["caption" => "Aus", "value" => 0]];
+        for ($v = 10; $v <= 100; $v += 10) {
+            $options[] = ["caption" => "{$v} Liter", "value" => $v];
+        }
+        for ($v = 150; $v <= 1000; $v += 50) {
+            $options[] = ["caption" => "{$v} Liter", "value" => $v];
+        }
+        for ($v = 1100; $v <= 9000; $v += 100) {
+            $options[] = ["caption" => "{$v} Liter", "value" => $v];
+        }
+        return $options;
+    }
+
+    private function GetTimeOptions() {
+        $options = [["caption" => "Aus", "value" => 0]];
+        for ($m = 30; $m <= 1500; $m += 30) {
+            $hours = $m / 60;
+            $options[] = ["caption" => "{$hours} Std ({$m} min)", "value" => $m];
+        }
+        return $options;
+    }
+
+    private function GetFlowOptions() {
+        $options = [
+            ["caption" => "Aus", "value" => 0],
+            ["caption" => "3500 l/h", "value" => 3500],
+            ["caption" => "3600 l/h", "value" => 3600]
+        ];
+        for ($f = 3700; $f <= 5000; $f += 100) {
+            $options[] = ["caption" => "{$f} l/h", "value" => $f];
+        }
+        return $options;
+    }
+
+    public function GetConfigurationForm() {
+        $form = json_decode(file_get_contents(__DIR__ . "/form.json"), true);
+
+        $slpActive = $this->GetValue("LearningPhaseActive");
+        $slpDays = $this->GetValue("LearningPhaseDays");
+        if ($slpDays < 7) $slpDays = 7;
+
+        $p1Vol = $this->GetValue("P1_MaxVolume");
+        $p1Time = $this->GetValue("P1_MaxTime");
+        $p1Flow = $this->GetValue("P1_MaxFlow");
+        $p1Micro = $this->GetValue("P1_MicroLeak");
+        $p1Buzzer = $this->GetValue("P1_Buzzer");
+        $p1Alarm = $this->GetValue("P1_Alarm");
+
+        $p2Vol = $this->GetValue("P2_MaxVolume");
+        $p2Time = $this->GetValue("P2_MaxTime");
+        $p2Flow = $this->GetValue("P2_MaxFlow");
+        $p2Micro = $this->GetValue("P2_MicroLeak");
+        $p2Return = $this->GetValue("P2_ReturnTime");
+        $p2Buzzer = $this->GetValue("P2_Buzzer");
+        $p2Alarm = $this->GetValue("P2_Alarm");
+
+        $dispOrientation = $this->GetValue("DisplayOrientation");
+        if ($dispOrientation < 1) $dispOrientation = 1;
+
+        $volOptions = $this->GetVolumeOptions();
+        $timeOptions = $this->GetTimeOptions();
+        $flowOptions = $this->GetFlowOptions();
+
+        $form['actions'] = [
+            [
+                "type" => "RowLayout",
+                "items" => [
+                    [
+                        "type" => "Button",
+                        "caption" => "Status jetzt aktualisieren",
+                        "onClick" => "SYR_UpdateData(\$id);"
+                    ]
+                ]
+            ],
+            [
+                "type" => "ExpansionPanel",
+                "caption" => "Absperrung, Profil & Displaysteuerung",
+                "items" => [
+                    [
+                        "type" => "RowLayout",
+                        "items" => [
+                            [
+                                "type" => "Button",
+                                "caption" => "Ventil öffnen",
+                                "onClick" => "SYR_SetValveAction(\$id, true);"
+                            ],
+                            [
+                                "type" => "Button",
+                                "caption" => "Ventil schließen",
+                                "onClick" => "SYR_SetValveAction(\$id, false);"
+                            ]
+                        ]
+                    ],
+                    [
+                        "type" => "RowLayout",
+                        "items" => [
+                            [
+                                "type" => "Select",
+                                "name" => "TargetProfile",
+                                "caption" => "Aktives Profil wählen",
+                                "options" => [
+                                    ["caption" => "Profil 1: Anwesend", "value" => 1],
+                                    ["caption" => "Profil 2: Abwesend", "value" => 2],
+                                    ["caption" => "Profil 3", "value" => 3],
+                                    ["caption" => "Profil 4", "value" => 4]
+                                ],
+                                "value" => max(1, $this->GetValue("ActiveProfile"))
+                            ],
+                            [
+                                "type" => "Button",
+                                "caption" => "Profil aktivieren",
+                                "onClick" => "SYR_SetProfile(\$id, \$TargetProfile);"
+                            ]
+                        ]
+                    ],
+                    [
+                        "type" => "RowLayout",
+                        "items" => [
+                            [
+                                "type" => "Select",
+                                "name" => "EditDisplayOrientation",
+                                "caption" => "Display drehen",
+                                "options" => [
+                                    ["caption" => "Standard (0°)", "value" => 1],
+                                    ["caption" => "90° Gedreht", "value" => 2],
+                                    ["caption" => "180° Gedreht", "value" => 3],
+                                    ["caption" => "270° Gedreht", "value" => 4]
+                                ],
+                                "value" => (int)$dispOrientation
+                            ],
+                            [
+                                "type" => "Button",
+                                "caption" => "Display Ausrichtung speichern",
+                                "onClick" => "SYR_SetDisplayOrientation(\$id, \$EditDisplayOrientation);"
+                            ]
+                        ]
+                    ]
+                ]
+            ],
+            [
+                "type" => "ExpansionPanel",
+                "caption" => "Selbstlernphase",
+                "items" => [
+                    [
+                        "type" => "RowLayout",
+                        "items" => [
+                            [
+                                "type" => "CheckBox",
+                                "name" => "EditSLPActive",
+                                "caption" => "Selbstlernphase aktiv",
+                                "value" => (bool)$slpActive
+                            ],
+                            [
+                                "type" => "NumberSpinner",
+                                "name" => "EditSLPDays",
+                                "caption" => "Dauer (7 bis 28 Tage)",
+                                "minimum" => 7,
+                                "maximum" => 28,
+                                "step" => 1,
+                                "value" => (int)$slpDays
+                            ],
+                            [
+                                "type" => "Button",
+                                "caption" => "Selbstlernphase speichern",
+                                "onClick" => "SYR_SetLearningPhase(\$id, \$EditSLPActive, \$EditSLPDays);"
+                            ]
+                        ]
+                    ]
+                ]
+            ],
+            [
+                "type" => "ExpansionPanel",
+                "caption" => "Profil 1 (Anwesend) - Einstellungen",
+                "items" => [
+                    [
+                        "type" => "RowLayout",
+                        "items" => [
+                            [
+                                "type" => "Select",
+                                "name" => "EditVolumeP1",
+                                "caption" => "Volumenleckage",
+                                "options" => $volOptions,
+                                "value" => (int)$p1Vol
+                            ],
+                            [
+                                "type" => "Button",
+                                "caption" => "Volumen setzen",
+                                "onClick" => "SYR_SetProfileVolume(\$id, 1, \$EditVolumeP1);"
+                            ]
+                        ]
+                    ],
+                    [
+                        "type" => "RowLayout",
+                        "items" => [
+                            [
+                                "type" => "Select",
+                                "name" => "EditTimeP1",
+                                "caption" => "Zeitleckage",
+                                "options" => $timeOptions,
+                                "value" => (int)$p1Time
+                            ],
+                            [
+                                "type" => "Button",
+                                "caption" => "Zeit setzen",
+                                "onClick" => "SYR_SetProfileTime(\$id, 1, \$EditTimeP1);"
+                            ]
+                        ]
+                    ],
+                    [
+                        "type" => "RowLayout",
+                        "items" => [
+                            [
+                                "type" => "Select",
+                                "name" => "EditFlowP1",
+                                "caption" => "Durchflussleckage",
+                                "options" => $flowOptions,
+                                "value" => (int)$p1Flow
+                            ],
+                            [
+                                "type" => "Button",
+                                "caption" => "Durchfluss setzen",
+                                "onClick" => "SYR_SetProfileFlow(\$id, 1, \$EditFlowP1);"
+                            ]
+                        ]
+                    ],
+                    [
+                        "type" => "RowLayout",
+                        "items" => [
+                            [
+                                "type" => "CheckBox",
+                                "name" => "EditMicroLeakP1",
+                                "caption" => "Mikroleckage aktivieren",
+                                "value" => (bool)$p1Micro
+                            ],
+                            [
+                                "type" => "Button",
+                                "caption" => "Mikroleckage speichern",
+                                "onClick" => "SYR_SetProfileMicroLeak(\$id, 1, \$EditMicroLeakP1);"
+                            ]
+                        ]
+                    ],
+                    [
+                        "type" => "RowLayout",
+                        "items" => [
+                            [
+                                "type" => "CheckBox",
+                                "name" => "EditBuzzerP1",
+                                "caption" => "Warnton (Buzzer) aktivieren",
+                                "value" => (bool)$p1Buzzer
+                            ],
+                            [
+                                "type" => "Button",
+                                "caption" => "Warnton speichern",
+                                "onClick" => "SYR_SetProfileBuzzer(\$id, 1, \$EditBuzzerP1);"
+                            ]
+                        ]
+                    ],
+                    [
+                        "type" => "RowLayout",
+                        "items" => [
+                            [
+                                "type" => "CheckBox",
+                                "name" => "EditAlarmP1",
+                                "caption" => "Profil Leckagewarnung aktivieren",
+                                "value" => (bool)$p1Alarm
+                            ],
+                            [
+                                "type" => "Button",
+                                "caption" => "Leckagewarnung speichern",
+                                "onClick" => "SYR_SetProfileAlarm(\$id, 1, \$EditAlarmP1);"
+                            ]
+                        ]
+                    ]
+                ]
+            ],
+            [
+                "type" => "ExpansionPanel",
+                "caption" => "Profil 2 (Abwesend) - Einstellungen",
+                "items" => [
+                    [
+                        "type" => "RowLayout",
+                        "items" => [
+                            [
+                                "type" => "Select",
+                                "name" => "EditVolumeP2",
+                                "caption" => "Volumenleckage",
+                                "options" => $volOptions,
+                                "value" => (int)$p2Vol
+                            ],
+                            [
+                                "type" => "Button",
+                                "caption" => "Volumen setzen",
+                                "onClick" => "SYR_SetProfileVolume(\$id, 2, \$EditVolumeP2);"
+                            ]
+                        ]
+                    ],
+                    [
+                        "type" => "RowLayout",
+                        "items" => [
+                            [
+                                "type" => "Select",
+                                "name" => "EditTimeP2",
+                                "caption" => "Zeitleckage",
+                                "options" => $timeOptions,
+                                "value" => (int)$p2Time
+                            ],
+                            [
+                                "type" => "Button",
+                                "caption" => "Zeit setzen",
+                                "onClick" => "SYR_SetProfileTime(\$id, 2, \$EditTimeP2);"
+                            ]
+                        ]
+                    ],
+                    [
+                        "type" => "RowLayout",
+                        "items" => [
+                            [
+                                "type" => "Select",
+                                "name" => "EditFlowP2",
+                                "caption" => "Durchflussleckage",
+                                "options" => $flowOptions,
+                                "value" => (int)$p2Flow
+                            ],
+                            [
+                                "type" => "Button",
+                                "caption" => "Durchfluss setzen",
+                                "onClick" => "SYR_SetProfileFlow(\$id, 2, \$EditFlowP2);"
+                            ]
+                        ]
+                    ],
+                    [
+                        "type" => "RowLayout",
+                        "items" => [
+                            [
+                                "type" => "CheckBox",
+                                "name" => "EditMicroLeakP2",
+                                "caption" => "Mikroleckage aktivieren",
+                                "value" => (bool)$p2Micro
+                            ],
+                            [
+                                "type" => "Button",
+                                "caption" => "Mikroleckage speichern",
+                                "onClick" => "SYR_SetProfileMicroLeak(\$id, 2, \$EditMicroLeakP2);"
+                            ]
+                        ]
+                    ],
+                    [
+                        "type" => "RowLayout",
+                        "items" => [
+                            [
+                                "type" => "NumberSpinner",
+                                "name" => "EditReturnTimeP2",
+                                "caption" => "Rückkehrzeit zu Profil 1 (in Stunden, 0 = Aus)",
+                                "minimum" => 0,
+                                "maximum" => 168,
+                                "value" => (int)$p2Return
+                            ],
+                            [
+                                "type" => "Button",
+                                "caption" => "Rückkehrzeit setzen",
+                                "onClick" => "SYR_SetProfileReturnTime(\$id, 2, \$EditReturnTimeP2);"
+                            ]
+                        ]
+                    ],
+                    [
+                        "type" => "RowLayout",
+                        "items" => [
+                            [
+                                "type" => "CheckBox",
+                                "name" => "EditBuzzerP2",
+                                "caption" => "Warnton (Buzzer) aktivieren",
+                                "value" => (bool)$p2Buzzer
+                            ],
+                            [
+                                "type" => "Button",
+                                "caption" => "Warnton speichern",
+                                "onClick" => "SYR_SetProfileBuzzer(\$id, 2, \$EditBuzzerP2);"
+                            ]
+                        ]
+                    ],
+                    [
+                        "type" => "RowLayout",
+                        "items" => [
+                            [
+                                "type" => "CheckBox",
+                                "name" => "EditAlarmP2",
+                                "caption" => "Profil Leckagewarnung aktivieren",
+                                "value" => (bool)$p2Alarm
+                            ],
+                            [
+                                "type" => "Button",
+                                "caption" => "Leckagewarnung speichern",
+                                "onClick" => "SYR_SetProfileAlarm(\$id, 2, \$EditAlarmP2);"
+                            ]
+                        ]
+                    ]
+                ]
+            ]
+        ];
+
+        return json_encode($form);
+    }
+
+    // --- PUBLIC SETTER & ACTION HANDLER ---
+
+    public function SetValveAction(bool $open) {
+        $targetVal = $open ? 1 : 2;
+        $endpoint = "/safe-tec/set/ab/" . $targetVal;
+        
+        $response = $this->SendAdminAndCommand($endpoint);
+        if (empty($response) || strpos($response, "ERROR") !== false) {
+            $this->SendAdminAndCommand("/safe-tec/set/AB/(" . $targetVal . ")f");
+        }
+    }
+
+    public function SetProfile(int $profileId) {
+        $this->SendAdminAndCommand("/safe-tec/set/prf/" . $profileId);
+    }
+
+    public function SetLearningPhase(bool $active, int $days) {
+        $actVal = $active ? 1 : 0;
+        $this->SendAdminAndCommand("/safe-tec/set/slt/" . $days);
+        $this->SendAdminAndCommand("/safe-tec/set/slp/" . $actVal);
+    }
+
+    public function SetProfileVolume(int $profileId, float $volume) {
+        $this->SendAdminAndCommand("/safe-tec/set/pv" . $profileId . "/" . (int)$volume);
+    }
+
+    public function SetProfileTime(int $profileId, int $minutes) {
+        $this->SendAdminAndCommand("/safe-tec/set/pt" . $profileId . "/" . $minutes);
+    }
+
+    public function SetProfileFlow(int $profileId, float $flow) {
+        $this->SendAdminAndCommand("/safe-tec/set/pf" . $profileId . "/" . (int)$flow);
+    }
+
+    public function SetProfileMicroLeak(int $profileId, bool $state) {
+        $val = $state ? 1 : 0;
+        $this->SendAdminAndCommand("/safe-tec/set/pm" . $profileId . "/" . $val);
+    }
+
+    public function SetProfileBuzzer(int $profileId, bool $state) {
+        $val = $state ? 1 : 0;
+        $this->SendAdminAndCommand("/safe-tec/set/pb" . $profileId . "/" . $val);
+    }
+
+    public function SetProfileAlarm(int $profileId, bool $state) {
+        $val = $state ? 1 : 0;
+        $this->SendAdminAndCommand("/safe-tec/set/pa" . $profileId . "/" . $val);
+    }
+
+    public function SetProfileReturnTime(int $profileId, int $hours) {
+        $this->SendAdminAndCommand("/safe-tec/set/pr" . $profileId . "/" . $hours);
+    }
+
     public function RequestAction($Ident, $Value) {
         switch ($Ident) {
             case "ValveAction":
-                $targetVal = ((bool)$Value) ? 1 : 2;
-                $this->SendAdminAndCommand("/safe-tec/set/ab/" . $targetVal);
+                $this->SetValveAction((bool)$Value);
                 break;
             case "ActiveProfile":
-                $this->SendAdminAndCommand("/safe-tec/set/prf/" . (int)$Value);
+                $this->SetProfile((int)$Value);
                 break;
             case "DisplayOrientation":
                 $this->SetDisplayOrientation((int)$Value);
+                break;
+            case "LearningPhaseActive":
+                $days = $this->GetValue("LearningPhaseDays");
+                $this->SetLearningPhase((bool)$Value, $days > 0 ? $days : 14);
+                break;
+            case "LearningPhaseDays":
+                $active = $this->GetValue("LearningPhaseActive");
+                $this->SetLearningPhase((bool)$active, (int)$Value);
+                break;
+            case "P1_MaxVolume":
+                $this->SetProfileVolume(1, (float)$Value);
+                break;
+            case "P1_MaxTime":
+                $this->SetProfileTime(1, (int)$Value);
+                break;
+            case "P1_MaxFlow":
+                $this->SetProfileFlow(1, (float)$Value);
+                break;
+            case "P1_MicroLeak":
+                $this->SetProfileMicroLeak(1, (bool)$Value);
+                break;
+            case "P1_Buzzer":
+                $this->SetProfileBuzzer(1, (bool)$Value);
+                break;
+            case "P1_Alarm":
+                $this->SetProfileAlarm(1, (bool)$Value);
+                break;
+            case "P2_MaxVolume":
+                $this->SetProfileVolume(2, (float)$Value);
+                break;
+            case "P2_MaxTime":
+                $this->SetProfileTime(2, (int)$Value);
+                break;
+            case "P2_MaxFlow":
+                $this->SetProfileFlow(2, (float)$Value);
+                break;
+            case "P2_MicroLeak":
+                $this->SetProfileMicroLeak(2, (bool)$Value);
+                break;
+            case "P2_ReturnTime":
+                $this->SetProfileReturnTime(2, (int)$Value);
+                break;
+            case "P2_Buzzer":
+                $this->SetProfileBuzzer(2, (bool)$Value);
+                break;
+            case "P2_Alarm":
+                $this->SetProfileAlarm(2, (bool)$Value);
                 break;
             default:
                 throw new Exception("Invalid Ident: " . $Ident);
