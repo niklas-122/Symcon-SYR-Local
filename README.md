@@ -23,7 +23,7 @@ Besondere Merkmale:
 ## 2. Voraussetzungen
 
 * IP-Symcon ab Version 6.0
-* Ein SYR SafeTech / SafeTech+ Gerät, das im lokalen WLAN/Netzwerk eingebunden ist.
+* Ein SYR SafeTech Gerät, das im lokalen WLAN/Netzwerk eingebunden ist.
 
 ## 3. Installation
 
