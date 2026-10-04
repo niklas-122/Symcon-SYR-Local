@@ -180,8 +180,8 @@ class SyrSafeTechConnect extends IPSModule {
         $l2 = $this->RegisterVariableFloat("FlowleakageUtilization", "Durchflussleckage-Ausnutzung", "SYR.Flow", 21);
         $l3 = $this->RegisterVariableFloat("VolumeleakageLimit", "Volumenleckage-Begrenzung", "SYR.Volume", 22);
         $l4 = $this->RegisterVariableFloat("VolumeleakageUtilization", "Volumenleckage-Ausnutzung", "SYR.Volume.Tap", 23);
-        $l5 = $this->RegisterVariableFloat("TimeleakageLimit", "Zeitleckage-Begrenzung", "SYR.Minutes", 24);
-        $l6 = $this->RegisterVariableFloat("TimeleakageUtilization", "Zeitleckage-Ausnutzung", "SYR.Minutes", 25);
+        $l5 = $this->RegisterVariableInteger("TimeleakageLimit", "Zeitleckage-Begrenzung", "SYR.Minutes", 24);
+        $l6 = $this->RegisterVariableInteger("TimeleakageUtilization", "Zeitleckage-Ausnutzung", "SYR.Minutes", 25);
 
         IPS_SetPosition($l1, 20);
         IPS_SetPosition($l2, 21);
