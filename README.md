@@ -15,7 +15,7 @@ Dieses Modul ermöglicht die lokale Anbindung der SYR SafeTech Connect Leckagesc
 
 Besondere Merkmale:
 
-* **Lokale Steuerung:** Ventilsteuerung, Profilwahl (Anwesend/Abwesend) und Display-Ausrichtung (4 Stufen) direkt im eigenen Netzwerk konfigurierbar.
+* **Lokale Steuerung:** Ventilsteuerung, Profilwahl (Anwesend/Abwesend) direkt im eigenen Netzwerk konfigurierbar.
 * **Live-Leckageüberwachung:** Auslesen der aktiven Limits (Begrenzung) und Berechnung der Live-Ausnutzung (Durchfluss, Volumen, Zeit) während eines Zapfvorgangs, inklusive eigenem Timer zur Berechnung der Zapfzeit.
 * **Tagesverbrauch:** Eigenständige Berechnung des täglichen Wasserverbrauchs mit automatischer Rücksetzung um Mitternacht.
 * **Wasserwerte:** Kontinuierliche Ermittlung von Leitfähigkeit und automatisierte Schätzung der Wasserhärte (°dH).
